@@ -1,6 +1,7 @@
 import CoreLocation
 import MapLibre
 import SwiftUI
+import UIKit
 import VelaCore
 
 struct ContentView: View {
@@ -263,6 +264,7 @@ struct SuggestionsPanel: View {
     @ObservedObject var settings = AppSettings.shared
     let done: () -> Void
     @Environment(\.colorScheme) private var scheme
+    @State private var copiedLink = false
 
     var body: some View {
         ScrollView {
@@ -289,6 +291,26 @@ struct SuggestionsPanel: View {
                         row(icon: "magnifyingglass", text: q) { done(); model.search(q) }
                     }
                 } else {
+                    if copiedLink {
+                        // The system Paste button reads the clipboard without iOS asking first.
+                        HStack(spacing: 16) {
+                            Image(systemName: "link").frame(width: 22).foregroundColor(.secondary)
+                            Text("Open a copied map link").foregroundColor(.primary)
+                            Spacer()
+                            PasteButton(payloadType: String.self) { strings in
+                                guard let text = strings.first else { return }
+                                Task { @MainActor in
+                                    done()
+                                    model.openLink(text)
+                                }
+                            }
+                            .labelStyle(.titleOnly)
+                            .buttonBorderShape(.capsule)
+                            .tint(Vela.routeBlue)
+                        }
+                        .padding(.horizontal, 18)
+                        .frame(height: 50)
+                    }
                     Shortcuts(model: model, done: done)
                     ForEach(Category.all) { c in
                         row(icon: c.icon, text: c.label) { done(); model.search(c.query, title: c.label) }
@@ -341,6 +363,14 @@ struct SuggestionsPanel: View {
         .glass(RoundedRectangle(cornerRadius: 20))
         .padding(.horizontal, 12)
         .frame(maxHeight: 460)
+        .task {
+            // Only checks whether the clipboard looks like a link; it doesn't read it.
+            guard UIPasteboard.general.hasStrings || UIPasteboard.general.hasURLs else { return }
+            UIPasteboard.general.detectPatterns(for: [.probableWebURL]) { result in
+                let found = (try? result.get())?.contains(.probableWebURL) ?? false
+                Task { @MainActor in copiedLink = found }
+            }
+        }
     }
 
     private func row(icon: String, text: String, action: @escaping () -> Void) -> some View {
@@ -405,6 +435,15 @@ enum DemoScript {
             return
         }
         if step == "welcome" { model.settings.welcomed = false; return }
+        if step == "wazelink" {
+            // A Waze share link pasted into search: a geohash by Westminster Bridge.
+            model.search("https://waze.com/ul/hgcpuvpk4")
+            return
+        }
+        if step == "googlelink" {
+            model.search("Big Ben https://www.google.com/maps/place/Big+Ben/@51.5007292,-0.1272003,17z/data=!3m1!4b1!4m6!3m5!1s0x487604c38c8cd1d9:0xb78f2474b9a45aa9!8m2!3d51.5007292!4d-0.1246254!16zL20vMGNrcA")
+            return
+        }
         if step == "mine" {
             // Home, work and a parked car around downtown Davis, as icons on the map.
             var home = Place(id: "demo-home", name: "Home", location: LatLng(38.5480, -121.7445), source: "demo")

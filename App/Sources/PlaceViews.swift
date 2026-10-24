@@ -235,6 +235,8 @@ struct SavedView: View {
     @ObservedObject var settings: AppSettings
     let onPick: (Place) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var renaming: Place?
+    @State private var newName = ""
 
     var body: some View {
         NavigationView {
@@ -254,6 +256,15 @@ struct SavedView: View {
                                     if let a = p.address { Text(a).font(.caption).foregroundColor(.secondary) }
                                 }
                             }
+                            .contextMenu {
+                                Button { startRename(p) } label: { Label("Rename", systemImage: "pencil") }
+                                Button(role: .destructive) { settings.saved.removeAll { $0.id == p.id } } label: {
+                                    Label("Remove", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading) {
+                                Button { startRename(p) } label: { Label("Rename", systemImage: "pencil") }.tint(Vela.routeBlue)
+                            }
                         }
                         .onDelete { settings.saved.remove(atOffsets: $0) }
                     }
@@ -261,8 +272,23 @@ struct SavedView: View {
             }
             .navigationTitle("Saved")
             .navigationBarTitleDisplayMode(.inline)
+            .alert("Rename", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+                TextField("Name", text: $newName)
+                Button("Save") {
+                    if let p = renaming { settings.renameSaved(p.id, to: newName) }
+                    renaming = nil
+                }
+                Button("Cancel", role: .cancel) { renaming = nil }
+            }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+    }
+}
+
+private extension SavedView {
+    func startRename(_ p: Place) {
+        newName = p.name
+        renaming = p
     }
 }
 

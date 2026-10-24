@@ -29,11 +29,13 @@ struct VelaMapView: UIViewRepresentable {
         for r in map.gestureRecognizers ?? [] {
             if let t = r as? UITapGestureRecognizer, t.numberOfTapsRequired == 2 { tap.require(toFail: t) }
         }
-        tap.delegate = c
-        map.addGestureRecognizer(tap)
         let press = UILongPressGestureRecognizer(target: c, action: #selector(Coordinator.pressed(_:)))
         press.delegate = c
         map.addGestureRecognizer(press)
+        // A long press must never also count as a tap, or the tap closes the pin it just dropped.
+        tap.require(toFail: press)
+        tap.delegate = c
+        map.addGestureRecognizer(tap)
 
         c.dark = dark
         model.map = map
@@ -57,6 +59,7 @@ struct VelaMapView: UIViewRepresentable {
         var dark = false
         private var styleReady = false
         private var movedToUser = false
+        private var pinDroppedAt = Date.distantPast
         private var originalLabels: [String: (NSExpression?, NSExpression?, NSExpression?)] = [:]
         private var lastResultsKey = ""
         private var lastRouteKey = ""
@@ -602,7 +605,8 @@ struct VelaMapView: UIViewRepresentable {
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
 
         @objc func tapped(_ g: UITapGestureRecognizer) {
-            guard let map = g.view as? MLNMapView, model.nav == nil else { return }
+            guard let map = g.view as? MLNMapView, model.nav == nil,
+                  Date().timeIntervalSince(pinDroppedAt) > 1 else { return }
             let pt = g.location(in: map)
             let box = CGRect(x: pt.x - 22, y: pt.y - 22, width: 44, height: 44)
             Task { @MainActor in
@@ -649,6 +653,7 @@ struct VelaMapView: UIViewRepresentable {
 
         @objc func pressed(_ g: UILongPressGestureRecognizer) {
             guard g.state == .began, let map = g.view as? MLNMapView else { return }
+            pinDroppedAt = Date()
             let c = map.convert(g.location(in: map), toCoordinateFrom: map)
             Task { @MainActor in
                 guard self.model.nav == nil, self.model.directions == nil else { return }

@@ -111,9 +111,9 @@ jobs:
           xcrun simctl install "$DEV" simbuild/Build/Products/Debug-iphonesimulator/Vela.app
           xcrun simctl privacy "$DEV" grant location app.vela.ios || true
           mkdir -p shots
-          for step in browse search place directions nav cameras layers transit board mine stops rail welcome camalert streetview svtest svtest90 lookaround copy; do
+          for step in browse search place directions nav cameras layers transit board mine stops rail welcome camalert streetview svtest svtest90 lookaround copy wazelink googlelink; do
             xcrun simctl launch --terminate-running-process "$DEV" app.vela.ios -demo "$step"
-            case $step in browse) t=16;; search) t=24;; place) t=28;; directions) t=38;; nav) t=44;; cameras) t=110;; layers) t=12;; transit) t=40;; board) t=24;; mine) t=14;; stops) t=40;; rail) t=30;; welcome) t=10;; camalert) t=52;; streetview) t=40;; svtest) t=12;; svtest90) t=12;; lookaround) t=40;; copy) t=34;; esac
+            case $step in browse) t=16;; search) t=24;; place) t=28;; directions) t=38;; nav) t=44;; cameras) t=110;; layers) t=12;; transit) t=40;; board) t=24;; mine) t=14;; stops) t=40;; rail) t=30;; welcome) t=10;; camalert) t=52;; streetview) t=40;; svtest) t=12;; svtest90) t=12;; lookaround) t=40;; copy) t=34;; wazelink) t=16;; googlelink) t=24;; esac
             sleep $t
             xcrun simctl io "$DEV" screenshot "shots/$step.png"
           done

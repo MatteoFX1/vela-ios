@@ -103,8 +103,14 @@ final class AppSettings: ObservableObject {
         if let i = saved.firstIndex(where: { $0.id == p.id }) { saved.remove(at: i) } else { saved.insert(p, at: 0) }
     }
 
+    func renameSaved(_ id: String, to name: String) {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty, let i = saved.firstIndex(where: { $0.id == id }) else { return }
+        saved[i].name = n
+    }
+
     func addRecentPlace(_ p: Place) {
-        guard !p.id.hasPrefix("pin:"), !p.id.hasPrefix("parking"), !p.id.hasPrefix("tap:"), !p.id.hasPrefix("demo") else { return }
+        guard !p.id.hasPrefix("pin:"), !p.id.hasPrefix("link:"), !p.id.hasPrefix("parking"), !p.id.hasPrefix("tap:"), !p.id.hasPrefix("demo") else { return }
         var slim = p
         slim.distanceMeters = nil
         slim.photoUrls = Array(p.photoUrls.prefix(1))

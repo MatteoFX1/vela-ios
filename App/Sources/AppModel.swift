@@ -148,6 +148,10 @@ final class AppModel: ObservableObject {
     func search(_ text: String? = nil, title: String? = nil) {
         let q = (text ?? query).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return }
+        if title == nil, MapLinks.looksLikeLink(q) {
+            openLink(q)
+            return
+        }
         query = title ?? q
         settings.addRecent(title ?? q)
         searchTask?.cancel()
@@ -188,7 +192,7 @@ final class AppModel: ObservableObject {
     func typed(_ text: String) {
         suggestTask?.cancel()
         let q = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard q.count >= 2 else { suggestions = SuggestParser.Result(); return }
+        guard q.count >= 2, !MapLinks.looksLikeLink(q) else { suggestions = SuggestParser.Result(); return }
         let vp = viewport
         let useGoogle = !settings.noGoogle
         let user = userLatLng
@@ -207,6 +211,40 @@ final class AppModel: ObservableObject {
                 r.places = r.places.map { var p = $0; p.distanceMeters = user.distance(to: p.location); return p }
             }
             suggestions = r
+        }
+    }
+
+    /** A pasted Google Maps, Waze or Apple Maps link (or coordinates): show the spot it points at. */
+    func openLink(_ text: String) {
+        searchTask?.cancel()
+        suggestTask?.cancel()
+        suggestions = SuggestParser.Result()
+        selected = nil
+        directions = nil
+        results = []
+        notice = nil
+        searching = true
+        query = "Opening link…"
+        searchTask = Task {
+            let target = await MapLinks.resolve(text)
+            guard !Task.isCancelled else { return }
+            searching = false
+            switch target {
+            case let .spot(point, name?)?:
+                query = name
+                resolve(Place(id: "link:\(point.lat),\(point.lng)", name: name, location: point, source: "osm"))
+            case let .spot(point, nil)?:
+                query = ""
+                dropPin(at: point, name: "Shared location")
+            case let .search(q, near)?:
+                if let near, let map {
+                    map.setCenter(CLLocationCoordinate2D(latitude: near.lat, longitude: near.lng), zoomLevel: 14, animated: false)
+                }
+                search(q)
+            case nil:
+                query = ""
+                notice = "Couldn't find a location in that link."
+            }
         }
     }
 
@@ -341,8 +379,8 @@ final class AppModel: ObservableObject {
     }
 
     /** Long press: a dropped pin with the address there. */
-    func dropPin(at point: LatLng) {
-        var pin = Place(id: "pin:\(point.lat),\(point.lng)", name: "Dropped pin", location: point, source: "osm")
+    func dropPin(at point: LatLng, name: String = "Dropped pin") {
+        var pin = Place(id: "pin:\(point.lat),\(point.lng)", name: name, location: point, source: "osm")
         pin.category = String(format: "%.5f, %.5f", point.lat, point.lng)
         select(pin)
         Task {
