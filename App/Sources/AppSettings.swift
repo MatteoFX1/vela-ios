@@ -40,6 +40,7 @@ final class AppSettings: ObservableObject {
     @Published var noGoogle: Bool { didSet { d.set(noGoogle, forKey: "noGoogle") } }
     /** Fixed speed cameras on the map, and plate readers (DeFlock), from OpenStreetMap. */
     @Published var speedCameras: Bool { didSet { d.set(speedCameras, forKey: "speedCameras") } }
+    @Published var surveillanceCameras: Bool { didSet { d.set(surveillanceCameras, forKey: "surveillanceCameras") } }
     @Published var plateCameras: Bool { didSet { d.set(plateCameras, forKey: "plateCameras") } }
     /** Say "Speed camera ahead" while navigating. Off by default: some countries restrict it. */
     @Published var cameraWarnings: Bool { didSet { d.set(cameraWarnings, forKey: "cameraWarnings") } }
@@ -89,6 +90,7 @@ final class AppSettings: ObservableObject {
         avoidHighways = d.bool(forKey: "avoidHighways")
         noGoogle = d.bool(forKey: "noGoogle")
         speedCameras = d.object(forKey: "speedCameras") as? Bool ?? true
+        surveillanceCameras = d.bool(forKey: "surveillanceCameras")
         plateCameras = d.object(forKey: "plateCameras") as? Bool ?? true
         // On for new users, except where warning of cameras is against the law.
         cameraWarnings = d.object(forKey: "cameraWarnings") as? Bool ?? !Self.camerasRestricted

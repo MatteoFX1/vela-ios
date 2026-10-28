@@ -25,6 +25,7 @@ struct LayersSheet: View {
                 tile("Terrain", icon: "mountain.2.fill", on: settings.terrain) { settings.terrain.toggle() }
                 tile("Speed cameras", badge: .speed, on: settings.speedCameras) { settings.speedCameras.toggle() }
                 tile("Plate cameras", badge: .plate, on: settings.plateCameras) { settings.plateCameras.toggle() }
+                tile("Surveillance", icon: "video.fill", on: settings.surveillanceCameras) { settings.surveillanceCameras.toggle() }
                 tile("Road alerts", waze: Waze.shares.contains(.police) ? .police : .closure, on: settings.wazeOn && settings.wazeOnMap) {
                     if settings.waze && settings.wazeOnMap { settings.wazeOnMap = false } else { settings.waze = true; settings.wazeOnMap = true }
                 }
@@ -167,13 +168,14 @@ struct SettingsView: View {
             }
             Section {
                 Toggle(isOn: $settings.speedCameras) { SettingLabel("Speed cameras", icon: "camera.fill", color: 0xDC2626) }
+                Toggle(isOn: $settings.surveillanceCameras) { SettingLabel("Surveillance cameras", icon: "video.fill", color: 0x16A34A) }
                 Toggle(isOn: $settings.plateCameras) {
                     SettingLabel(Fmt.yards ? "Number plate cameras" : "License plate cameras", icon: "number", color: 0x6B7280)
                 }
             } header: {
                 Text("Show on the map and route")
             } footer: {
-                Text("Speed cameras and \(Fmt.yards ? "number" : "license") plate cameras from OpenStreetMap's open map, shown on the map and on your route. Some countries, like France and Germany, don't allow warnings of speed cameras, so check before you turn the voice on there.")
+                Text("Camera locations come from OpenStreetMap. General surveillance cameras are not necessarily plate readers and are shown only on the map. Some countries, like France and Germany, don't allow warnings of speed cameras, so check before you turn the voice on there.")
             }
         }
         .kiteList()

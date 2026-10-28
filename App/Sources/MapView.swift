@@ -56,6 +56,7 @@ struct VelaMapView: UIViewRepresentable {
         }
         c.render(map)
         c.loadCameras(map)
+        c.loadSurveillance(map)
         c.loadWaze(map)
     }
 
@@ -79,6 +80,9 @@ struct VelaMapView: UIViewRepresentable {
         private var cameras: [Int64: RoadCamera] = [:]
         private var cameraCells: Set<String> = []
         private var cameraFetch: Task<Void, Never>?
+        private var surveillanceFetch: Task<Void, Never>?
+        private var surveillanceCells: Set<String> = []
+        private var surveillance: [Int64: SurveillanceCamera] = [:]
         private var railFetch: Task<Void, Never>?
         /** Live Waze reports for the box last asked about, and when. */
         private var wazeAlerts: [WazeAlert] = []
@@ -477,17 +481,25 @@ struct VelaMapView: UIViewRepresentable {
         private func renderCameras(_ style: MLNStyle) {
             let s = model.settings
             let line = model.nav?.route.polyline ?? model.directions?.route?.polyline ?? []
-            let key = "\(s.speedCameras)\(s.plateCameras)\(cameras.count)\(line.count)\(line.first?.lat ?? 0)"
+            let key = "\(s.speedCameras)\(s.plateCameras)\(s.surveillanceCameras)\(surveillance.count)\(cameras.count)\(line.count)\(line.first?.lat ?? 0)"
             guard key != lastCameraKey else { return }
             lastCameraKey = key
             let shown = cameras.values.filter { $0.kind == .speed ? s.speedCameras : s.plateCameras }
             let cum = line.count >= 2 ? Geo.cumulative(line) : []
-            let features: [MLNPointFeature] = shown.map { c in
+            var features: [MLNPointFeature] = shown.map { c in
                 let f = MLNPointFeature()
                 f.coordinate = CLLocationCoordinate2D(latitude: c.location.lat, longitude: c.location.lng)
                 let onRoute = !cum.isEmpty && Geo.project(c.location, on: line, cumulative: cum).offset < 40
-                f.attributes = ["icon": c.kind == .speed ? "cam-speed" : "cam-plate", "big": onRoute ? 1 : 0]
+                f.attributes = ["icon": c.kind == .speed ? "cam-speed" : "cam-plate", "big": onRoute ? 1 : 0, "surveillanceId": c.kind == .plate ? String(c.id) : ""]
                 return f
+            }
+            if s.surveillanceCameras {
+                for camera in surveillance.values where !(camera.isALPR && s.plateCameras && cameras[camera.id] != nil) {
+                    let f = MLNPointFeature()
+                    f.coordinate = CLLocationCoordinate2D(latitude: camera.location.lat, longitude: camera.location.lng)
+                    f.attributes = ["icon": camera.isALPR ? "cam-plate" : "cam-surveillance", "big": 0, "surveillanceId": String(camera.id)]
+                    features.append(f)
+                }
             }
             (style.source(withIdentifier: "vela-cameras") as? MLNShapeSource)?.shape = MLNShapeCollectionFeature(shapes: features)
         }
@@ -620,6 +632,29 @@ struct VelaMapView: UIViewRepresentable {
                 }
                 // The map may have moved on while this was loading.
                 if lines != nil, let map { self.loadRail(map) }
+            }
+        }
+
+        /** Separate OSM surveillance layer, opt-in; bounded to the same cells as camera lookups. */
+        func loadSurveillance(_ map: MLNMapView) {
+            guard model.settings.surveillanceCameras, map.zoomLevel >= 12, surveillanceFetch == nil else { return }
+            let b = map.visibleCoordinateBounds, cell = 0.1
+            let y0 = Int(floor(b.sw.latitude / cell)), y1 = Int(floor(b.ne.latitude / cell))
+            let x0 = Int(floor(b.sw.longitude / cell)), x1 = Int(floor(b.ne.longitude / cell))
+            guard y1 >= y0, x1 >= x0, (y1 - y0 + 1) * (x1 - x0 + 1) <= 12 else { return }
+            var missing: [(Int, Int)] = []
+            for y in y0...y1 { for x in x0...x1 where !surveillanceCells.contains("\(y),\(x)") { missing.append((y, x)) } }
+            guard !missing.isEmpty else { return }
+            let ys = missing.map(\.0), xs = missing.map(\.1)
+            surveillanceFetch = Task { [weak self, weak map] in
+                let found = await SurveillanceCameras.inBox(south: Double(ys.min()!) * cell, west: Double(xs.min()!) * cell,
+                    north: Double(ys.max()! + 1) * cell, east: Double(xs.max()! + 1) * cell)
+                guard let self else { return }
+                self.surveillanceFetch = nil
+                guard let found else { return }
+                for (y, x) in missing { self.surveillanceCells.insert("\(y),\(x)") }
+                for c in found { self.surveillance[c.id] = c }
+                if let map { self.render(map); self.loadSurveillance(map) }
             }
         }
 
@@ -841,6 +876,12 @@ struct VelaMapView: UIViewRepresentable {
                     self.model.wazeInfo = a
                     return
                 }
+                let cameraHits = map.visibleFeatures(in: box, styleLayerIdentifiers: ["vela-cameras"])
+                if let id = cameraHits.first?.attribute(forKey: "surveillanceId") as? String,
+                   let numericID = Int64(id), let camera = self.surveillance[numericID] {
+                    self.model.surveillanceInfo = camera
+                    return
+                }
                 let mine = map.visibleFeatures(in: box, styleLayerIdentifiers: ["vela-mine"])
                 if let id = mine.first?.attribute(forKey: "id") as? String, let place = self.model.myPlace(id) {
                     self.model.select(place)
@@ -891,6 +932,7 @@ struct VelaMapView: UIViewRepresentable {
         nonisolated func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
             MainActor.assumeIsolated {
                 loadCameras(mapView)
+                loadSurveillance(mapView)
                 loadWaze(mapView)
                 loadRail(mapView)
                 noteHeading(mapView)

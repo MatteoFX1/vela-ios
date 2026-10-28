@@ -48,6 +48,13 @@ struct ContentView: View {
                 }
             }
         }
+        .alert(item: $model.surveillanceInfo) { camera in
+            let details = [camera.operatorName.map { "Operator: \($0)" }, camera.manufacturer.map { "Manufacturer: \($0)" },
+                           camera.surveillance.map { "Watches: \($0)" }, camera.mount.map { "Mount: \($0)" },
+                           camera.direction.map { "Direction: \($0)" }].compactMap { $0 }.joined(separator: "\n")
+            return Alert(title: Text(camera.isALPR ? "Plate reader" : "Surveillance camera"),
+                         message: Text(details.isEmpty ? "Details not mapped in OpenStreetMap." : details), dismissButton: .default(Text("OK")))
+        }
         .overlay(alignment: .bottom) {
             if DemoScript.step == "wazemap" || DemoScript.step == "wazeuk" || DemoScript.step == "wazesizes" {
                 // Screenshot run only: what Waze answered, since the build's computers can't be trusted to get through.
