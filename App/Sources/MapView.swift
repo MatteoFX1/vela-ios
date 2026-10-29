@@ -459,12 +459,13 @@ struct VelaMapView: UIViewRepresentable {
                 if let p = s.parking { items.append((p, "mine-parking", "Parked car")) }
                 for p in s.saved.prefix(200) where !items.contains(where: { $0.0.id == p.id }) { items.append((p, "mine-saved", p.name)) }
             }
-            let sel = model.selected?.id
+            let selected = model.selected
+            let sel = selected?.id
             let key = items.map { $0.0.id + $0.1 }.joined(separator: ",") + "|" + (sel ?? "")
             guard key != lastMineKey else { return }
             lastMineKey = key
             let features: [MLNPointFeature] = items.compactMap { p, icon, label in
-                guard p.id != sel else { return nil }
+                guard !(selected.map { p.matchesNearby($0) } ?? false) else { return nil }
                 let f = MLNPointFeature()
                 f.coordinate = CLLocationCoordinate2D(latitude: p.location.lat, longitude: p.location.lng)
                 f.attributes = ["id": p.id, "icon": icon, "label": label]

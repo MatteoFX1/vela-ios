@@ -151,10 +151,10 @@ final class AppSettings: ObservableObject {
         wants(a.kind) && (wazeMaxAge == 0 || Date().timeIntervalSince(a.reportedAt) <= Double(wazeMaxAge) * 60)
     }
 
-    func isSaved(_ p: Place) -> Bool { saved.contains { $0.id == p.id } }
+    func isSaved(_ p: Place) -> Bool { saved.contains { $0.matchesNearby(p) } }
 
     func toggleSaved(_ p: Place) {
-        if let i = saved.firstIndex(where: { $0.id == p.id }) { saved.remove(at: i) } else { saved.insert(p, at: 0) }
+        if let i = saved.firstIndex(where: { $0.matchesNearby(p) }) { saved.remove(at: i) } else { saved.insert(p, at: 0) }
     }
 
     func renameSaved(_ id: String, to name: String) {

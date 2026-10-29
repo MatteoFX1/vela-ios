@@ -306,13 +306,13 @@ final class AppModel: ObservableObject {
         notice = nil
     }
 
-    func select(_ place: Place) {
+    func select(_ place: Place, focus: Bool = true) {
         var p = place
         if !DemoScript.active { settings.addRecentPlace(place) }
         if p.distanceMeters == nil, let u = userLatLng { p.distanceMeters = u.distance(to: p.location) }
         selected = p
         detent = .half
-        guard let map else { return }
+        guard focus, let map else { return }
         let target = CLLocationCoordinate2D(latitude: p.location.lat, longitude: p.location.lng)
         let pad = sideInset > 0 ? UIEdgeInsets(top: 0, left: sideInset, bottom: 0, right: 0)
                                 : UIEdgeInsets(top: 120, left: 0, bottom: map.bounds.height * 0.45, right: 0)
@@ -337,7 +337,7 @@ final class AppModel: ObservableObject {
         var placeholder = placeholder
         let name = placeholder.name, point = placeholder.location
         placeholder.distanceMeters = userLatLng?.distance(to: point)
-        select(placeholder)
+        select(placeholder, focus: !placeholder.id.hasPrefix("tap:"))
         guard !settings.noGoogle else { return }
         let q = [name, placeholder.address].compactMap { $0 }.joined(separator: " ")
         let pid = placeholder.id
@@ -347,6 +347,8 @@ final class AppModel: ObservableObject {
             if let best = found.filter({ $0.location.distance(to: point) < 150 })
                 .min(by: { $0.location.distance(to: point) < $1.location.distance(to: point) }) {
                 var b = best
+                // Enrich a tapped map feature without moving its pin to a nearby search result.
+                if pid.hasPrefix("tap:") { b.location = point }
                 b.distanceMeters = userLatLng?.distance(to: b.location)
                 selected = b
                 if !DemoScript.active { settings.addRecentPlace(b) }
