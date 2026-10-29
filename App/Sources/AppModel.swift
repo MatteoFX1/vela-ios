@@ -596,8 +596,11 @@ final class AppModel: ObservableObject {
 
     /** Police risk within about a kilometre of you, from remembered and live Waze police reports. */
     func updateAreaRisk(live: [WazeAlert]) {
-        let center = map.map { LatLng($0.centerCoordinate.latitude, $0.centerCoordinate.longitude) }
-        guard settings.wazeOn, settings.policeRisk, settings.wazePolice, let here = userLatLng ?? center else { areaRisk = nil; return }
+        guard settings.wazeOn, settings.policeRisk, settings.wazePolice,
+              !location.reducedAccuracy, let fix = location.last,
+              fix.horizontalAccuracy >= 0, fix.horizontalAccuracy <= 200,
+              abs(fix.timestamp.timeIntervalSinceNow) < 120 else { areaRisk = nil; return }
+        let here = LatLng(fix.coordinate.latitude, fix.coordinate.longitude)
         let d = 0.0096 / max(cos(here.lat * .pi / 180), 0.2) * 0.62
         let line = [LatLng(here.lat, here.lng - d), LatLng(here.lat, here.lng + d)]
         let near = live.filter { $0.kind == .police && $0.location.distance(to: here) < 1_500 }.count
@@ -647,6 +650,7 @@ final class AppModel: ObservableObject {
     }
 
     private func locationChanged(_ loc: CLLocation) {
+        if location.reducedAccuracy || loc.horizontalAccuracy > 200 { areaRisk = nil }
         guard let n = nav else { return }
         n.handle(loc)
         followCamera(n, loc, animated: true)

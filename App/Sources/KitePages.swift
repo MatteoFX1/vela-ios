@@ -56,7 +56,7 @@ struct WazeMapChips: View {
                     let level = PoliceRisk.level(risk)
                     HStack(spacing: 8) {
                         Image(systemName: "shield.lefthalf.filled").font(.system(size: 17, weight: .bold))
-                        Text("Police risk here: \(level.rawValue.capitalized)").font(.system(size: 16, weight: .bold))
+                        Text("Local report activity: \(level.rawValue.capitalized)").font(.system(size: 16, weight: .bold))
                     }
                     .foregroundColor(level == .medium ? Color(hex: 0x1F1300) : .white)
                     .padding(.horizontal, 14).frame(height: 44)

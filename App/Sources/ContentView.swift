@@ -871,6 +871,12 @@ struct StatusCards: View {
         if location.denied || DemoScript.step == "locationoff" {
             card(icon: "location.slash.fill", color: Vela.closed, title: "Location is off",
                  detail: "Kite needs it to show where you are and to guide you.", button: "Turn on") { LocationService.openSettings() }
+        } else if location.authorized && location.reducedAccuracy {
+            card(icon: "location.circle.fill", color: Color(hex: 0xF59E0B), title: "Precise location is off",
+                 detail: "Turn on Precise Location for Kite in Settings to improve your position.", button: "Settings") { LocationService.openSettings() }
+        } else if location.authorized, let fix = location.last, fix.horizontalAccuracy > 200 {
+            card(icon: "location.circle.fill", color: Color(hex: 0xF59E0B), title: "Location is uncertain",
+                 detail: "GPS accuracy is about \(Int(fix.horizontalAccuracy)) m. Move outdoors for a better fix.", button: nil) {}
         } else if !net.online {
             card(icon: "wifi.slash", color: Color(hex: 0xF59E0B), title: "No internet connection",
                  detail: "Search, routes and live traffic need one. The map you've already seen still works.", button: nil) {}

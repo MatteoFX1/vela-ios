@@ -9,6 +9,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     @Published private(set) var authorized = false
     /** Location is off for Kite (or for the whole phone): only Settings can turn it back on. */
     @Published private(set) var denied = false
+    @Published private(set) var reducedAccuracy = false
     var onUpdate: (@MainActor (CLLocation) -> Void)?
     private let manager = CLLocationManager()
 
@@ -17,6 +18,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.activityType = .automotiveNavigation
+        reducedAccuracy = manager.accuracyAuthorization == .reducedAccuracy
     }
 
     func start() {
@@ -36,7 +38,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let loc = locations.last else { return }
+        guard let loc = locations.last, loc.horizontalAccuracy >= 0,
+              abs(loc.timestamp.timeIntervalSinceNow) < 120 else { return }
         Task { @MainActor in
             self.last = loc
             self.onUpdate?(loc)
@@ -45,9 +48,11 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let s = manager.authorizationStatus
+        let reduced = manager.accuracyAuthorization == .reducedAccuracy
         Task { @MainActor in
             self.authorized = s == .authorizedWhenInUse || s == .authorizedAlways
             self.denied = s == .denied || s == .restricted
+            self.reducedAccuracy = reduced
             if self.authorized { self.manager.startUpdatingLocation() }
         }
     }
