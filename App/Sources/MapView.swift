@@ -131,7 +131,7 @@ struct VelaMapView: UIViewRepresentable {
             // Names next to our pins: dark text on a white halo by day, light text on navy at night.
             let text = dark ? UIColor(hex: 0xE8EAED) : UIColor(hex: 0x202124)
             let halo = dark ? UIColor(hex: 0x0B1526) : UIColor.white
-            for id in ["vela-results", "vela-selected"] {
+            for id in ["vela-mine", "vela-results", "vela-selected"] {
                 guard let l = style.layer(withIdentifier: id) as? MLNSymbolStyleLayer else { continue }
                 l.textColor = NSExpression(forConstantValue: text)
                 l.textHaloColor = NSExpression(forConstantValue: halo)
