@@ -39,6 +39,7 @@ enum MapIcons {
         style.setImage(bubble(fill: .white, stroke: UIColor(hex: 0xBDC1C6)), forName: "bubble-alt")
         style.setImage(speedCamera(), forName: "cam-speed")
         style.setImage(plateCamera(), forName: "cam-plate")
+        style.setImage(surveillanceCamera(), forName: "cam-surveillance")
         style.setImage(trafficLight(), forName: "traffic-light")
         for k in WazeAlert.Kind.allCases { style.setImage(waze(k), forName: "waze-\(k.rawValue)") }
         style.setImage(turnHead(), forName: "turn-head")
@@ -116,6 +117,12 @@ enum MapIcons {
             arm.lineWidth = 2.4
             UIColor.white.setStroke()
             arm.stroke()
+        }
+    }
+
+    static func surveillanceCamera() -> UIImage {
+        badge(UIColor(hex: 0x22863A)) { _ in
+            draw("video.fill", in: CGRect(x: 12, y: 12, width: 22, height: 22), color: .white)
         }
     }
 

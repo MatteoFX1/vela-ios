@@ -56,7 +56,7 @@ struct WazeMapChips: View {
                     let level = PoliceRisk.level(risk)
                     HStack(spacing: 8) {
                         Image(systemName: "shield.lefthalf.filled").font(.system(size: 17, weight: .bold))
-                        Text("Police risk here: \(level.rawValue.capitalized)").font(.system(size: 16, weight: .bold))
+                        Text("Local report activity: \(level.rawValue.capitalized)").font(.system(size: 16, weight: .bold))
                     }
                     .foregroundColor(level == .medium ? Color(hex: 0x1F1300) : .white)
                     .padding(.horizontal, 14).frame(height: 44)
@@ -243,7 +243,7 @@ struct SettingsPage: View {
         GeometryReader { geo in
             ZStack(alignment: .bottom) {
                 Vela.ground(scheme).ignoresSafeArea()
-                SettingsView(settings: settings, inTab: true, pick: { model.picking = $0 }, onChange: { model.reloadRoutes() })
+                SettingsView(settings: settings, model: model, inTab: true, pick: { model.picking = $0 }, onChange: { model.reloadRoutes() })
                     .safeAreaInset(edge: .bottom) { Color.clear.frame(height: KiteDock.height + 10) }
                 KiteDock(model: model, bottomInset: geo.safeAreaInsets.bottom)
                     .ignoresSafeArea(edges: .bottom)
