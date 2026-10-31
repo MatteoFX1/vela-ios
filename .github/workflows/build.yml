@@ -35,6 +35,10 @@ jobs:
         continue-on-error: true
         timeout-minutes: 6
         run: python3 .github/probe/camdir.py
+      - name: Live camera side-of-road check (UK)
+        continue-on-error: true
+        timeout-minutes: 6
+        run: python3 .github/probe/camside.py
       - name: Live UK turn-by-turn check
         working-directory: VelaCore
         continue-on-error: true
