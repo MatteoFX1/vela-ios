@@ -58,6 +58,15 @@ public struct Place: Identifiable, Hashable, Codable, Sendable {
         self.source = source
     }
 
+    /// Identify the same nearby named feature across map and search providers.
+    public func matchesNearby(_ other: Place) -> Bool {
+        if id == other.id { return true }
+        let a = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let b = other.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !a.isEmpty, a.compare(b, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame else { return false }
+        return location.distance(to: other.location) <= 150
+    }
+
     /** A Google Maps link for the place, for sharing and for opening it in Google Maps. */
     public var shareURL: URL? {
         if let placeId {

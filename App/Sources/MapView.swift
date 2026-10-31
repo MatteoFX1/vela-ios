@@ -1,4 +1,5 @@
 import MapLibre
+import os
 import SwiftUI
 import UIKit
 import VelaCore
@@ -56,11 +57,14 @@ struct VelaMapView: UIViewRepresentable {
         }
         c.render(map)
         c.loadCameras(map)
+        c.loadSurveillance(map)
         c.loadWaze(map)
     }
 
     @MainActor
     final class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
+        /** What the browse map asked Waze and got, for checking a test run afterwards. */
+        static let trace = Logger(subsystem: "app.vela.ios", category: "trace")
         let model: AppModel
         var dark = false
         private var styleReady = false
@@ -79,6 +83,9 @@ struct VelaMapView: UIViewRepresentable {
         private var cameras: [Int64: RoadCamera] = [:]
         private var cameraCells: Set<String> = []
         private var cameraFetch: Task<Void, Never>?
+        private var surveillanceFetch: Task<Void, Never>?
+        private var surveillanceCells: Set<String> = []
+        private var surveillance: [Int64: SurveillanceCamera] = [:]
         private var railFetch: Task<Void, Never>?
         /** Live Waze reports for the box last asked about, and when. */
         private var wazeAlerts: [WazeAlert] = []
@@ -131,7 +138,7 @@ struct VelaMapView: UIViewRepresentable {
             // Names next to our pins: dark text on a white halo by day, light text on navy at night.
             let text = dark ? UIColor(hex: 0xE8EAED) : UIColor(hex: 0x202124)
             let halo = dark ? UIColor(hex: 0x0B1526) : UIColor.white
-            for id in ["vela-results", "vela-selected"] {
+            for id in ["vela-mine", "vela-results", "vela-selected"] {
                 guard let l = style.layer(withIdentifier: id) as? MLNSymbolStyleLayer else { continue }
                 l.textColor = NSExpression(forConstantValue: text)
                 l.textHaloColor = NSExpression(forConstantValue: halo)
@@ -213,8 +220,9 @@ struct VelaMapView: UIViewRepresentable {
             altFill.lineOpacity = NSExpression(forConstantValue: 0.6)
             let edge = line("vela-route-edge", routeSrc, UIColor(hex: 0x0F766E), width: 15)
             let fill = line("vela-route-line", routeSrc, UIColor(hex: 0x2DD4BF), width: 10)
-            fill.lineGradient = NSExpression(format: "mgl_interpolate:withCurveType:parameters:stops:($lineProgress, 'linear', nil, %@)",
-                                             [0: UIColor(hex: 0x2DD4BF), 1: UIColor(hex: 0x22D3EE)])
+            // As a style expression: newer iOS refuses the old "mgl_interpolate:" format string.
+            fill.lineGradient = NSExpression(mglJSONObject: ["interpolate", ["linear"], ["line-progress"],
+                                                             0, "#2DD4BF", 1, "#22D3EE"])
             let chevrons = MLNSymbolStyleLayer(identifier: "vela-route-chevrons", source: routeSrc)
             chevrons.symbolPlacement = NSExpression(forConstantValue: "line")
             chevrons.symbolSpacing = NSExpression(forConstantValue: 70)
@@ -458,12 +466,13 @@ struct VelaMapView: UIViewRepresentable {
                 if let p = s.parking { items.append((p, "mine-parking", "Parked car")) }
                 for p in s.saved.prefix(200) where !items.contains(where: { $0.0.id == p.id }) { items.append((p, "mine-saved", p.name)) }
             }
-            let sel = model.selected?.id
+            let selected = model.selected
+            let sel = selected?.id
             let key = items.map { $0.0.id + $0.1 }.joined(separator: ",") + "|" + (sel ?? "")
             guard key != lastMineKey else { return }
             lastMineKey = key
             let features: [MLNPointFeature] = items.compactMap { p, icon, label in
-                guard p.id != sel else { return nil }
+                guard !(selected.map { p.matchesNearby($0) } ?? false) else { return nil }
                 let f = MLNPointFeature()
                 f.coordinate = CLLocationCoordinate2D(latitude: p.location.lat, longitude: p.location.lng)
                 f.attributes = ["id": p.id, "icon": icon, "label": label]
@@ -475,17 +484,25 @@ struct VelaMapView: UIViewRepresentable {
         private func renderCameras(_ style: MLNStyle) {
             let s = model.settings
             let line = model.nav?.route.polyline ?? model.directions?.route?.polyline ?? []
-            let key = "\(s.speedCameras)\(s.plateCameras)\(cameras.count)\(line.count)\(line.first?.lat ?? 0)"
+            let key = "\(s.speedCameras)\(s.plateCameras)\(s.surveillanceCameras)\(surveillance.count)\(cameras.count)\(line.count)\(line.first?.lat ?? 0)"
             guard key != lastCameraKey else { return }
             lastCameraKey = key
             let shown = cameras.values.filter { $0.kind == .speed ? s.speedCameras : s.plateCameras }
             let cum = line.count >= 2 ? Geo.cumulative(line) : []
-            let features: [MLNPointFeature] = shown.map { c in
+            var features: [MLNPointFeature] = shown.map { c in
                 let f = MLNPointFeature()
                 f.coordinate = CLLocationCoordinate2D(latitude: c.location.lat, longitude: c.location.lng)
                 let onRoute = !cum.isEmpty && Geo.project(c.location, on: line, cumulative: cum).offset < 40
-                f.attributes = ["icon": c.kind == .speed ? "cam-speed" : "cam-plate", "big": onRoute ? 1 : 0]
+                f.attributes = ["icon": c.kind == .speed ? "cam-speed" : "cam-plate", "big": onRoute ? 1 : 0, "surveillanceId": c.kind == .plate ? String(c.id) : ""]
                 return f
+            }
+            if s.surveillanceCameras {
+                for camera in surveillance.values where !(camera.isALPR && s.plateCameras && cameras[camera.id] != nil) {
+                    let f = MLNPointFeature()
+                    f.coordinate = CLLocationCoordinate2D(latitude: camera.location.lat, longitude: camera.location.lng)
+                    f.attributes = ["icon": camera.isALPR ? "cam-plate" : "cam-surveillance", "big": 0, "surveillanceId": String(camera.id)]
+                    features.append(f)
+                }
             }
             (style.source(withIdentifier: "vela-cameras") as? MLNShapeSource)?.shape = MLNShapeCollectionFeature(shapes: features)
         }
@@ -558,13 +575,28 @@ struct VelaMapView: UIViewRepresentable {
             let dLat = (b.ne.latitude - b.sw.latitude) * 0.3, dLng = (b.ne.longitude - b.sw.longitude) * 0.3
             let box = (s: b.sw.latitude - dLat, w: b.sw.longitude - dLng, n: b.ne.latitude + dLat, e: b.ne.longitude + dLng)
             guard box.n - box.s < 1.5, box.e - box.w < 2.5 else { return }
+            // Drivers' reports (police, crashes, hazards) come from Waze's app servers, as on a drive:
+            // the live map only has closures now. Not while navigating, which asks along the route
+            // itself every 90 seconds, so Waze isn't asked twice. A box no bigger than the Waze app's
+            // own view at a wide zoom, around the middle of the screen.
+            let mid = LatLng((b.ne.latitude + b.sw.latitude) / 2, (b.ne.longitude + b.sw.longitude) / 2)
+            let hLat = min((box.n - box.s) / 2, 0.15), hLng = min((box.e - box.w) / 2, 0.25)
+            let liveBox = (s: mid.lat - hLat, w: mid.lng - hLng, n: mid.lat + hLat, e: mid.lng + hLng)
+            let askLive = model.nav == nil && !DemoScript.active
             wazeFetch = Task { [weak self, weak map] in
-                let found = await Waze.alerts(south: box.s, west: box.w, north: box.n, east: box.e)
+                async let closures = Waze.alerts(south: box.s, west: box.w, north: box.n, east: box.e)
+                let live = askLive ? await WazeLive.shared.alerts(boxes: [liveBox], near: mid) : nil
+                let fromMap = await closures
                 guard let self else { return }
                 self.wazeFetch = nil
-                guard let found else { self.wazeFailedAt = Date(); return }
+                guard fromMap != nil || live != nil else { self.wazeFailedAt = Date(); return }
+                var merged: [String: WazeAlert] = [:]
+                for a in (fromMap ?? []) + (live ?? []) { merged[a.id] = a }
+                let found = Array(merged.values)
+                Self.trace.info("waze browse: live map \(fromMap.map { String($0.count) } ?? "failed", privacy: .public), drivers' reports \(askLive ? (live.map { String($0.count) } ?? "failed") : "not asked", privacy: .public)")
                 self.wazeAlerts = found
-                self.wazeBox = box
+                // Asked again once the map leaves the part drivers' reports were asked for.
+                self.wazeBox = live != nil ? liveBox : box
                 self.wazeAt = Date()
                 WazeHistory.shared.record(found)
                 self.model.wazeLiveCount = found.filter { self.model.settings.shows($0) }.count
@@ -607,6 +639,35 @@ struct VelaMapView: UIViewRepresentable {
             }
         }
 
+        /** Separate OSM surveillance layer, opt-in; bounded to the same cells as camera lookups. */
+        func loadSurveillance(_ map: MLNMapView) {
+            guard model.settings.surveillanceCameras, map.zoomLevel >= 12, surveillanceFetch == nil else { return }
+            let b = map.visibleCoordinateBounds, cell = 0.1
+            let y0 = Int(floor(b.sw.latitude / cell)), y1 = Int(floor(b.ne.latitude / cell))
+            let x0 = Int(floor(b.sw.longitude / cell)), x1 = Int(floor(b.ne.longitude / cell))
+            guard y1 >= y0, x1 >= x0, (y1 - y0 + 1) * (x1 - x0 + 1) <= 12 else { return }
+            var missing: [(Int, Int)] = []
+            for y in y0...y1 { for x in x0...x1 where !surveillanceCells.contains("\(y),\(x)") { missing.append((y, x)) } }
+            guard !missing.isEmpty else { return }
+            let ys = missing.map(\.0), xs = missing.map(\.1)
+            surveillanceFetch = Task { [weak self, weak map] in
+                let found = await SurveillanceCameras.inBox(south: Double(ys.min()!) * cell, west: Double(xs.min()!) * cell,
+                    north: Double(ys.max()! + 1) * cell, east: Double(xs.max()! + 1) * cell)
+                guard let self else { return }
+                self.surveillanceFetch = nil
+                guard let found else {
+                    // A busy server: try again in 30 s, not only when the map is next moved.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self, weak map] in
+                        if let self, let map { self.loadSurveillance(map) }
+                    }
+                    return
+                }
+                for (y, x) in missing { self.surveillanceCells.insert("\(y),\(x)") }
+                for c in found { self.surveillance[c.id] = c }
+                if let map { self.render(map); self.loadSurveillance(map) }
+            }
+        }
+
         /** Ask Overpass for the cameras in view, a few 0.1° cells at a time, each cell once. */
         func loadCameras(_ map: MLNMapView) {
             let s = model.settings
@@ -622,12 +683,18 @@ struct VelaMapView: UIViewRepresentable {
             let ys = missing.map(\.0), xs = missing.map(\.1)
             let south = Double(ys.min()!) * cell, north = Double(ys.max()! + 1) * cell
             let west = Double(xs.min()!) * cell, east = Double(xs.max()! + 1) * cell
-            cameraFetch = Task { [weak self] in
+            cameraFetch = Task { [weak self, weak map] in
                 // Both kinds every time, so turning one on later needs no new fetch.
                 let found = await Overpass.cameras(south: south, west: west, north: north, east: east, speed: true, plate: true)
-                guard let self else { return }
+                guard let self, let map else { return }
                 self.cameraFetch = nil
-                guard let found else { return }
+                guard let found else {
+                    // A busy server: try again in 30 s, not only when the map is next moved.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self, weak map] in
+                        if let self, let map { self.loadCameras(map) }
+                    }
+                    return
+                }
                 for (y, x) in missing { self.cameraCells.insert("\(y),\(x)") }
                 for c in found { self.cameras[c.id] = c }
                 self.render(map)
@@ -825,6 +892,12 @@ struct VelaMapView: UIViewRepresentable {
                     self.model.wazeInfo = a
                     return
                 }
+                let cameraHits = map.visibleFeatures(in: box, styleLayerIdentifiers: ["vela-cameras"])
+                if let id = cameraHits.first?.attribute(forKey: "surveillanceId") as? String,
+                   let numericID = Int64(id), let camera = self.surveillance[numericID] {
+                    self.model.surveillanceInfo = camera
+                    return
+                }
                 let mine = map.visibleFeatures(in: box, styleLayerIdentifiers: ["vela-mine"])
                 if let id = mine.first?.attribute(forKey: "id") as? String, let place = self.model.myPlace(id) {
                     self.model.select(place)
@@ -875,6 +948,7 @@ struct VelaMapView: UIViewRepresentable {
         nonisolated func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
             MainActor.assumeIsolated {
                 loadCameras(mapView)
+                loadSurveillance(mapView)
                 loadWaze(mapView)
                 loadRail(mapView)
                 noteHeading(mapView)

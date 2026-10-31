@@ -225,4 +225,48 @@ final class ValhallaTests: XCTestCase {
         // Only what's mapped is remembered with the roads.
         XCTAssertEqual(p.ways.map(\.kmh), [64, nil, nil])
     }
+
+    func testDirectionTag() {
+        XCTAssertEqual(RoadCamera.bearings("90"), [90])
+        XCTAssertEqual(RoadCamera.bearings("NE"), [45])
+        XCTAssertEqual(RoadCamera.bearings("wsw"), [247.5])
+        XCTAssertEqual(RoadCamera.bearings("45;225"), [45, 225])
+        XCTAssertEqual(RoadCamera.bearings("315-45"), [0])
+        XCTAssertEqual(RoadCamera.bearings("-90"), [270])
+        XCTAssertNil(RoadCamera.bearings("both"))
+        XCTAssertNil(RoadCamera.bearings("forward"))
+        XCTAssertNil(RoadCamera.bearings(nil))
+        // Read from the map for speed cameras, never for plate readers.
+        let json = #"{"elements":[{"type":"node","id":1,"lat":51,"lon":-1,"tags":{"highway":"speed_camera","direction":"180"}},{"type":"node","id":2,"lat":51,"lon":-1,"tags":{"surveillance:type":"ALPR","direction":"180"}}]}"#
+        let cams = Overpass.parse(Data(json.utf8))
+        XCTAssertEqual(cams?[0].directions, [180])
+        XCTAssertNil(cams?[1].directions)
+    }
+
+    func testOnlyCamerasFacingOurWay() {
+        // Driving north up a straight road in England: traffic keeps left, so northbound cameras
+        // stand on the west (left) side, about 8 m off the middle, and southbound ones on the east.
+        let line = [LatLng(51.0, -1.0), LatLng(51.02, -1.0)]
+        let west = -1.000115, east = -0.999885, middle = -1.0
+        func cam(_ id: Int64, _ lat: Double, _ lng: Double, _ dir: [Double]?) -> RoadCamera {
+            RoadCamera(id: id, kind: .speed, location: LatLng(lat, lng), directions: dir)
+        }
+        let cams = [
+            cam(1, 51.002, west, [0]),      // ours, mapped right
+            cam(2, 51.004, east, [180]),    // the other way's: skipped
+            cam(3, 51.006, east, nil),      // no direction: warns
+            cam(4, 51.008, west, [180]),    // on our side but mapped the other way: warns, to be safe
+            cam(5, 51.010, middle, [180]),  // on the road itself, mapped the other way: warns
+            cam(6, 51.012, east, [0]),      // far side but mapped our way: warns
+            cam(7, 51.014, east, [90]),     // sideways: warns
+            cam(8, 51.016, east, [200]),    // the other way's: skipped
+        ]
+        // All still shown; the other way's are quiet.
+        let north = CameraAlerts.project(cams, on: line)
+        XCTAssertEqual(north.count, 8)
+        XCTAssertEqual(north.filter(\.camera.quiet).map(\.camera.id), [2, 8])
+        // Driving south, the other way round.
+        let south = CameraAlerts.project(cams, on: line.reversed())
+        XCTAssertEqual(south.filter(\.camera.quiet).map(\.camera.id), [1])
+    }
 }

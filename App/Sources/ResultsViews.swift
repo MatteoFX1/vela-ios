@@ -111,7 +111,7 @@ struct ResultRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(place.name).font(.system(size: 20, weight: .bold)).foregroundColor(.primary)
-            PlaceMetaLine(place: place)
+            PlaceMetaLine(place: place, here: model.userLatLng)
             StatusText(place: place).font(.subheadline)
             if place.rating == nil, let a = place.address {
                 Text(a).font(.subheadline).foregroundColor(.secondary).lineLimit(1)

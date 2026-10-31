@@ -3,6 +3,43 @@
 Every version of Kite Maps, newest first. The small number goes up for fixes and polish, and
 the middle number for big milestones.
 
+## 0.7.6
+
+- **Quieter about cameras on the other side of the road:** when the map says a speed camera
+  checks the other way *and* it stands on the far side of the road, Kite still shows it on screen
+  but doesn't chime or speak. It isn't hidden, because the map's direction is wrong for about one
+  camera in six. Cameras with no direction on the map warn as before. Number plate cameras are
+  unchanged.
+- **Police and drivers' reports on the map all the time:** not just along a route while you
+  navigate. Open the map at city zoom and Kite asks Waze about the area on screen, at most every
+  2 minutes or when you move the map well away (navigating, it still asks along the route).
+- **The drive time on a place card matches the route:** it said "23 min drive" for a 29 min
+  drive, as it came from the open router without traffic. It now asks the same way the
+  directions do, with traffic and your avoid settings.
+- **The route line's teal-to-cyan fade works again on the newest iOS**, which refused the old way
+  of writing it.
+- **Sending a place to Apple Maps keeps its whole name:** "M&S" went over as "M".
+- **Rerouting knows which way you're going even when the phone doesn't say:** with no compass
+  course from the GPS, Kite works it out from the last few seconds of driving, so a new route
+  doesn't start back the way you came.
+- **Arrived card:** "You've arrived", the place name and Done are never cut short or wrapped
+  ("Don / e"); on a narrow screen the buttons move under the words.
+- **Cameras on the map load even when the map server is busy:** Kite tries again after 30 seconds
+  instead of waiting for you to move the map.
+- **A place's distance is from where you are now,** not from where you searched (it still said
+  "11 mi" after arriving).
+- **Surveillance cameras layer (off by default):** CCTV cameras from OpenStreetMap, switched on
+  in Layers or Settings. Tap one to see who runs it. Map only, no warnings.
+- **Saved places stay saved:** tapping a place on the map you'd already saved from search now shows
+  it as saved, and the pin stays where you tapped instead of jumping to a nearby result.
+- **Saved-place names are easier to read** on the dark map.
+- **GPS warnings:** a card tells you when Precise Location is off for Kite, or when GPS is poor
+  (worse than 200 m). The "police risk here" card waits for a good fix and is now called "Local
+  report activity".
+- **Share diagnostics** (Settings, About): a small file with your Kite version, iPhone model,
+  settings and whether Waze and OpenStreetMap answer, to send with a bug report.
+- Thanks to Ausbloke's fork (github.com/NotDiscordOfficial/kite-maps) for these five.
+
 ## 0.7.5
 
 - **Slip roads show a slip road arrow, not a merge:** Google names some slip roads without saying

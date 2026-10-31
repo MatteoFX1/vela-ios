@@ -220,6 +220,8 @@ struct Stars: View {
 struct PlaceMetaLine: View {
     let place: Place
     var showStars = true
+    /** Where the user is now: the distance is worked out from here, not from where the search was made. */
+    var here: LatLng? = nil
 
     var body: some View {
         HStack(spacing: 4) {
@@ -230,7 +232,9 @@ struct PlaceMetaLine: View {
                 }
                 if let n = place.reviewCount { Text("(\(n.formatted()))") }
             }
-            let rest = [place.distanceMeters.map(Fmt.distance), place.category, place.priceText].compactMap { $0 }
+            // After driving there, the search's "11 mi" would be stale.
+            let meters = here.map { $0.distance(to: place.location) } ?? place.distanceMeters
+            let rest = [meters.map(Fmt.distance), place.category, place.priceText].compactMap { $0 }
             if !rest.isEmpty {
                 Text((place.rating != nil ? "· " : "") + rest.joined(separator: " · ")).lineLimit(1)
             }

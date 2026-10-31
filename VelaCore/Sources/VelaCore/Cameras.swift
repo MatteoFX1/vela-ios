@@ -12,6 +12,50 @@ public struct RoadCamera: Hashable, Codable, Sendable, Identifiable {
     public var maxspeedKmh: Double?
     /** One of a pair or chain timing average speed (how Britain usually maps them). */
     public var average = false
+    /**
+     * The way traffic is going when this camera checks it, as compass bearings (0 north, 90 east),
+     * from OSM's `direction`. Nil when the map doesn't say, so it counts for both ways.
+     */
+    public var directions: [Double]? = nil
+    /**
+     * Set along a route for a camera that looks like the other side's (see [CameraAlerts.otherWay]):
+     * it still shows, but without a chime or voice, since the map can be wrong.
+     */
+    public var quiet = false
+
+    /** Saved in the road cache without [quiet], which only means something along one route. */
+    enum CodingKeys: String, CodingKey { case id, kind, location, operatorName, maxspeedKmh, average, directions }
+
+    /** OSM `direction` as compass bearings: "90", "NE", "45;225", "0-90" (its middle). Nil for "both", "forward" and the like. */
+    public static func bearings(_ raw: String?) -> [Double]? {
+        guard let raw else { return nil }
+        let points = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+        var out: [Double] = []
+        for part in raw.split(whereSeparator: { $0 == ";" || $0 == "," }) {
+            let p = part.trimmingCharacters(in: .whitespaces).uppercased()
+            if p.isEmpty { continue }
+            if let i = points.firstIndex(of: p) { out.append(Double(i) * 22.5); continue }
+            if let n = Double(p) { out.append(n.truncatingRemainder(dividingBy: 360)); continue }
+            // A range, "315-45": its middle.
+            let ends = p.split(separator: "-").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            guard ends.count == 2 else { return nil }
+            let span = (ends[1] - ends[0] + 360).truncatingRemainder(dividingBy: 360)
+            out.append((ends[0] + span / 2).truncatingRemainder(dividingBy: 360))
+        }
+        return out.isEmpty ? nil : out.map { $0 < 0 ? $0 + 360 : $0 }
+    }
+
+    /**
+     * Whether the map says this camera checks traffic going [heading] (a compass bearing): false only
+     * for a camera mapped clearly the other way (more than 100 degrees off); one with no direction counts.
+     */
+    public func checks(heading: Double) -> Bool {
+        guard let directions, !directions.isEmpty else { return true }
+        return directions.contains { d in
+            let off = abs((d - heading + 540).truncatingRemainder(dividingBy: 360) - 180)
+            return off <= 100
+        }
+    }
 }
 
 /** A stretch of road where average speed is checked between cameras (common in Britain). */
@@ -344,7 +388,10 @@ public enum Overpass {
             return RoadCamera(id: id, kind: plate ? .plate : .speed, location: LatLng(lat, lon),
                               operatorName: plate ? (tags["operator"] ?? tags["manufacturer"]) : nil,
                               maxspeedKmh: plate ? nil : britishLimit(maxspeedKmh(tags["maxspeed"]), at: LatLng(lat, lon)),
-                              average: !plate && tags["enforcement"] == "average_speed")
+                              average: !plate && tags["enforcement"] == "average_speed",
+                              // Speed cameras only: a plate reader's direction is where its lens points, which
+                              // can be either way along the road.
+                              directions: plate ? nil : RoadCamera.bearings(tags["direction"]))
         }
     }
 }
@@ -391,7 +438,7 @@ public enum CameraAlerts {
             }
             run = []
         }
-        for c in cams where c.camera.average {
+        for c in cams where c.camera.average && !c.camera.quiet {
             if let last = run.last, c.along - last.along > maxGap { close() }
             run.append(c)
         }
@@ -423,8 +470,39 @@ public enum CameraAlerts {
         var out: [(RoadCamera, Double)] = []
         for c in cams {
             let p = Geo.project(c.location, on: line, cumulative: cum)
-            if p.offset <= maxOffset { out.append((c, p.along)) }
+            guard p.offset <= maxOffset else { continue }
+            var cam = c
+            cam.quiet = otherWay(c, along: p.along, offset: p.offset, on: line, cumulative: cum)
+            out.append((cam, p.along))
         }
         return out.sorted { $0.1 < $1.1 }
+    }
+
+    /**
+     * Likely a camera for the traffic coming the other way: the map says it checks the other way AND
+     * it stands on the far side of the road. Even both together can be wrong (in Britain the map's
+     * direction is reversed for 12 of 71 cameras on one-way roads, and the side disagrees with it
+     * for 198 of 773), so such a camera is shown quietly rather than left out.
+     */
+    static func otherWay(_ c: RoadCamera, along: Double, offset: Double, on line: [LatLng], cumulative cum: [Double]) -> Bool {
+        let h = heading(of: line, at: along, cumulative: cum)
+        guard !c.checks(heading: h), offset >= farSideMeters else { return false }
+        let at = Geo.point(along: line, meters: along, cumulative: cum)
+        // Which side of the route it stands on: negative is to the left.
+        let rel = (Geo.bearing(at, c.location) - h + 540).truncatingRemainder(dividingBy: 360) - 180
+        let onLeft = rel < 0
+        // Traffic keeps left in Britain, so a camera on the right checks the other carriageway.
+        return Geo.drivesOnLeft(at) ? !onLeft : onLeft
+    }
+
+    /** How far off the route's line a camera must stand to count as on one side of the road. */
+    static let farSideMeters = 5.0
+
+    /** Which way the route is going [meters] along it, from the stretch 20 m either side. */
+    static func heading(of line: [LatLng], at meters: Double, cumulative cum: [Double]) -> Double {
+        let total = cum.last ?? 0
+        let a = Geo.point(along: line, meters: max(min(meters - 20, total - 40), 0), cumulative: cum)
+        let b = Geo.point(along: line, meters: min(max(meters + 20, 40), total), cumulative: cum)
+        return Geo.bearing(a, b)
     }
 }
