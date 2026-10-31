@@ -3,6 +3,12 @@
 Every version of Kite Maps, newest first. The small number goes up for fixes and polish, and
 the middle number for big milestones.
 
+## 0.7.6
+
+- **No warnings for cameras on the other side of the road:** where the map says which way a speed
+  camera checks traffic, Kite only warns about the ones checking your way. Cameras with no
+  direction on the map still warn, to be safe. Number plate cameras are unchanged.
+
 ## 0.7.5
 
 - **Slip roads show a slip road arrow, not a merge:** Google names some slip roads without saying

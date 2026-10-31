@@ -31,6 +31,10 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         run: python3 .github/probe/lanes.py
+      - name: Live camera direction check (UK)
+        continue-on-error: true
+        timeout-minutes: 6
+        run: python3 .github/probe/camdir.py
       - name: Live UK turn-by-turn check
         working-directory: VelaCore
         continue-on-error: true

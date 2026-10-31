@@ -12,6 +12,42 @@ public struct RoadCamera: Hashable, Codable, Sendable, Identifiable {
     public var maxspeedKmh: Double?
     /** One of a pair or chain timing average speed (how Britain usually maps them). */
     public var average = false
+    /**
+     * The way traffic is going when this camera checks it, as compass bearings (0 north, 90 east),
+     * from OSM's `direction`. Nil when the map doesn't say, so it counts for both ways.
+     */
+    public var directions: [Double]? = nil
+
+    /** OSM `direction` as compass bearings: "90", "NE", "45;225", "0-90" (its middle). Nil for "both", "forward" and the like. */
+    public static func bearings(_ raw: String?) -> [Double]? {
+        guard let raw else { return nil }
+        let points = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+        var out: [Double] = []
+        for part in raw.split(whereSeparator: { $0 == ";" || $0 == "," }) {
+            let p = part.trimmingCharacters(in: .whitespaces).uppercased()
+            if p.isEmpty { continue }
+            if let i = points.firstIndex(of: p) { out.append(Double(i) * 22.5); continue }
+            if let n = Double(p) { out.append(n.truncatingRemainder(dividingBy: 360)); continue }
+            // A range, "315-45": its middle.
+            let ends = p.split(separator: "-").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            guard ends.count == 2 else { return nil }
+            let span = (ends[1] - ends[0] + 360).truncatingRemainder(dividingBy: 360)
+            out.append((ends[0] + span / 2).truncatingRemainder(dividingBy: 360))
+        }
+        return out.isEmpty ? nil : out.map { $0 < 0 ? $0 + 360 : $0 }
+    }
+
+    /**
+     * Whether this camera checks traffic going [heading] (a compass bearing). Only a camera mapped
+     * clearly the other way (more than 100 degrees off) is left out; a camera with no direction counts.
+     */
+    public func checks(heading: Double) -> Bool {
+        guard let directions, !directions.isEmpty else { return true }
+        return directions.contains { d in
+            let off = abs((d - heading + 540).truncatingRemainder(dividingBy: 360) - 180)
+            return off <= 100
+        }
+    }
 }
 
 /** A stretch of road where average speed is checked between cameras (common in Britain). */
@@ -344,7 +380,10 @@ public enum Overpass {
             return RoadCamera(id: id, kind: plate ? .plate : .speed, location: LatLng(lat, lon),
                               operatorName: plate ? (tags["operator"] ?? tags["manufacturer"]) : nil,
                               maxspeedKmh: plate ? nil : britishLimit(maxspeedKmh(tags["maxspeed"]), at: LatLng(lat, lon)),
-                              average: !plate && tags["enforcement"] == "average_speed")
+                              average: !plate && tags["enforcement"] == "average_speed",
+                              // Speed cameras only: a plate reader's direction is where its lens points, which
+                              // can be either way along the road.
+                              directions: plate ? nil : RoadCamera.bearings(tags["direction"]))
         }
     }
 }
@@ -423,8 +462,19 @@ public enum CameraAlerts {
         var out: [(RoadCamera, Double)] = []
         for c in cams {
             let p = Geo.project(c.location, on: line, cumulative: cum)
-            if p.offset <= maxOffset { out.append((c, p.along)) }
+            // A camera mapped as checking the other side of the road isn't one for this drive.
+            if p.offset <= maxOffset, c.checks(heading: heading(of: line, at: p.along, cumulative: cum)) {
+                out.append((c, p.along))
+            }
         }
         return out.sorted { $0.1 < $1.1 }
+    }
+
+    /** Which way the route is going [meters] along it, from the stretch 20 m either side. */
+    static func heading(of line: [LatLng], at meters: Double, cumulative cum: [Double]) -> Double {
+        let total = cum.last ?? 0
+        let a = Geo.point(along: line, meters: max(min(meters - 20, total - 40), 0), cumulative: cum)
+        let b = Geo.point(along: line, meters: min(max(meters + 20, 40), total), cumulative: cum)
+        return Geo.bearing(a, b)
     }
 }

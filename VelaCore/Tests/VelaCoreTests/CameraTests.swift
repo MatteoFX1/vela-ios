@@ -225,4 +225,37 @@ final class ValhallaTests: XCTestCase {
         // Only what's mapped is remembered with the roads.
         XCTAssertEqual(p.ways.map(\.kmh), [64, nil, nil])
     }
+
+    func testDirectionTag() {
+        XCTAssertEqual(RoadCamera.bearings("90"), [90])
+        XCTAssertEqual(RoadCamera.bearings("NE"), [45])
+        XCTAssertEqual(RoadCamera.bearings("wsw"), [247.5])
+        XCTAssertEqual(RoadCamera.bearings("45;225"), [45, 225])
+        XCTAssertEqual(RoadCamera.bearings("315-45"), [0])
+        XCTAssertEqual(RoadCamera.bearings("-90"), [270])
+        XCTAssertNil(RoadCamera.bearings("both"))
+        XCTAssertNil(RoadCamera.bearings("forward"))
+        XCTAssertNil(RoadCamera.bearings(nil))
+        // Read from the map for speed cameras, never for plate readers.
+        let json = #"{"elements":[{"type":"node","id":1,"lat":51,"lon":-1,"tags":{"highway":"speed_camera","direction":"180"}},{"type":"node","id":2,"lat":51,"lon":-1,"tags":{"surveillance:type":"ALPR","direction":"180"}}]}"#
+        let cams = Overpass.parse(Data(json.utf8))
+        XCTAssertEqual(cams?[0].directions, [180])
+        XCTAssertNil(cams?[1].directions)
+    }
+
+    func testOnlyCamerasFacingOurWay() {
+        // Driving north up a straight road, with cameras by it checking each way.
+        let line = [LatLng(51.0, -1.0), LatLng(51.02, -1.0)]
+        func cam(_ id: Int64, _ lat: Double, _ dir: [Double]?) -> RoadCamera {
+            RoadCamera(id: id, kind: .speed, location: LatLng(lat, -1.0001), directions: dir)
+        }
+        let cams = [cam(1, 51.002, [0]), cam(2, 51.004, [180]), cam(3, 51.006, nil),
+                    cam(4, 51.008, [10]), cam(5, 51.010, [90]), cam(6, 51.012, [180, 0]), cam(7, 51.014, [200])]
+        // North-ish, unknown, sideways and both-ways cameras warn; the ones clearly checking southbound don't.
+        XCTAssertEqual(CameraAlerts.project(cams, on: line).map(\.camera.id), [1, 3, 4, 5, 6])
+        // Driving south, the other way round.
+        XCTAssertEqual(CameraAlerts.project(cams, on: line.reversed()).map(\.camera.id).sorted(), [2, 3, 5, 6, 7])
+        // Right at the start or end of the route, the heading still comes from the road.
+        XCTAssertEqual(CameraAlerts.project([cam(8, 51.0, [180])], on: line).count, 0)
+    }
 }
