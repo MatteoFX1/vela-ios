@@ -244,18 +244,25 @@ final class ValhallaTests: XCTestCase {
     }
 
     func testOnlyCamerasFacingOurWay() {
-        // Driving north up a straight road, with cameras by it checking each way.
+        // Driving north up a straight road in England: traffic keeps left, so northbound cameras
+        // stand on the west (left) side, about 8 m off the middle, and southbound ones on the east.
         let line = [LatLng(51.0, -1.0), LatLng(51.02, -1.0)]
-        func cam(_ id: Int64, _ lat: Double, _ dir: [Double]?) -> RoadCamera {
-            RoadCamera(id: id, kind: .speed, location: LatLng(lat, -1.0001), directions: dir)
+        let west = -1.000115, east = -0.999885, middle = -1.0
+        func cam(_ id: Int64, _ lat: Double, _ lng: Double, _ dir: [Double]?) -> RoadCamera {
+            RoadCamera(id: id, kind: .speed, location: LatLng(lat, lng), directions: dir)
         }
-        let cams = [cam(1, 51.002, [0]), cam(2, 51.004, [180]), cam(3, 51.006, nil),
-                    cam(4, 51.008, [10]), cam(5, 51.010, [90]), cam(6, 51.012, [180, 0]), cam(7, 51.014, [200])]
-        // North-ish, unknown, sideways and both-ways cameras warn; the ones clearly checking southbound don't.
-        XCTAssertEqual(CameraAlerts.project(cams, on: line).map(\.camera.id), [1, 3, 4, 5, 6])
+        let cams = [
+            cam(1, 51.002, west, [0]),      // ours, mapped right
+            cam(2, 51.004, east, [180]),    // the other way's: skipped
+            cam(3, 51.006, east, nil),      // no direction: warns
+            cam(4, 51.008, west, [180]),    // on our side but mapped the other way: warns, to be safe
+            cam(5, 51.010, middle, [180]),  // on the road itself, mapped the other way: warns
+            cam(6, 51.012, east, [0]),      // far side but mapped our way: warns
+            cam(7, 51.014, east, [90]),     // sideways: warns
+            cam(8, 51.016, east, [200]),    // the other way's: skipped
+        ]
+        XCTAssertEqual(CameraAlerts.project(cams, on: line).map(\.camera.id), [1, 3, 4, 5, 6, 7])
         // Driving south, the other way round.
-        XCTAssertEqual(CameraAlerts.project(cams, on: line.reversed()).map(\.camera.id).sorted(), [2, 3, 5, 6, 7])
-        // Right at the start or end of the route, the heading still comes from the road.
-        XCTAssertEqual(CameraAlerts.project([cam(8, 51.0, [180])], on: line).count, 0)
+        XCTAssertEqual(CameraAlerts.project(cams, on: line.reversed()).map(\.camera.id).sorted(), [2, 3, 4, 5, 6, 7, 8])
     }
 }

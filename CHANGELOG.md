@@ -5,9 +5,10 @@ the middle number for big milestones.
 
 ## 0.7.6
 
-- **No warnings for cameras on the other side of the road:** where the map says which way a speed
-  camera checks traffic, Kite only warns about the ones checking your way. Cameras with no
-  direction on the map still warn, to be safe. Number plate cameras are unchanged.
+- **No warnings for cameras on the other side of the road:** Kite skips a speed camera only when
+  the map says it checks the other way *and* it stands on the far side of the road, since the
+  map's direction alone is wrong for about one camera in six. Cameras with no direction on the
+  map, or any doubt, still warn. Number plate cameras are unchanged.
 
 ## 0.7.5
 

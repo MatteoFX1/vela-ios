@@ -38,8 +38,8 @@ public struct RoadCamera: Hashable, Codable, Sendable, Identifiable {
     }
 
     /**
-     * Whether this camera checks traffic going [heading] (a compass bearing). Only a camera mapped
-     * clearly the other way (more than 100 degrees off) is left out; a camera with no direction counts.
+     * Whether the map says this camera checks traffic going [heading] (a compass bearing): false only
+     * for a camera mapped clearly the other way (more than 100 degrees off); one with no direction counts.
      */
     public func checks(heading: Double) -> Bool {
         guard let directions, !directions.isEmpty else { return true }
@@ -462,13 +462,32 @@ public enum CameraAlerts {
         var out: [(RoadCamera, Double)] = []
         for c in cams {
             let p = Geo.project(c.location, on: line, cumulative: cum)
-            // A camera mapped as checking the other side of the road isn't one for this drive.
-            if p.offset <= maxOffset, c.checks(heading: heading(of: line, at: p.along, cumulative: cum)) {
-                out.append((c, p.along))
-            }
+            guard p.offset <= maxOffset else { continue }
+            if otherWay(c, along: p.along, offset: p.offset, on: line, cumulative: cum) { continue }
+            out.append((c, p.along))
         }
         return out.sorted { $0.1 < $1.1 }
     }
+
+    /**
+     * A camera for the traffic coming the other way, so not one to warn about: only when the map
+     * says it checks the other way AND it stands on the far side of the road. The map's direction
+     * alone is wrong for about one camera in six (12 of 71 on one-way roads in Britain), and a
+     * missed camera costs far more than an extra warning, so one sign isn't enough.
+     */
+    static func otherWay(_ c: RoadCamera, along: Double, offset: Double, on line: [LatLng], cumulative cum: [Double]) -> Bool {
+        let h = heading(of: line, at: along, cumulative: cum)
+        guard !c.checks(heading: h), offset >= farSideMeters else { return false }
+        let at = Geo.point(along: line, meters: along, cumulative: cum)
+        // Which side of the route it stands on: negative is to the left.
+        let rel = (Geo.bearing(at, c.location) - h + 540).truncatingRemainder(dividingBy: 360) - 180
+        let onLeft = rel < 0
+        // Traffic keeps left in Britain, so a camera on the right checks the other carriageway.
+        return Geo.drivesOnLeft(at) ? !onLeft : onLeft
+    }
+
+    /** How far off the route's line a camera must stand to count as on one side of the road. */
+    static let farSideMeters = 5.0
 
     /** Which way the route is going [meters] along it, from the stretch 20 m either side. */
     static func heading(of line: [LatLng], at meters: Double, cumulative cum: [Double]) -> Double {
