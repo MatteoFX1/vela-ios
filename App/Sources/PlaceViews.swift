@@ -105,8 +105,17 @@ struct PlaceBody: View {
         driveSeconds = nil
         guard let from = model.userLatLng, from.distance(to: place.location) > 300,
               from.distance(to: place.location) < 300_000 else { return }
-        let r = try? await OSRM.route(from: from, to: place.location, mode: .drive)
-        if let s = r?.first?.durationSeconds { withAnimation { driveSeconds = s } }
+        // The same way the directions get it, with the user's avoid settings and today's traffic, so
+        // the card and the route agree (the open router alone said 23 min for a 29 min drive).
+        let s = model.settings
+        var r: [Route]?
+        if !s.noGoogle {
+            r = try? await GoogleClient.shared.directions(from: from, to: place.location, mode: .drive,
+                                                          avoidHighways: s.avoidHighways, avoidTolls: s.avoidTolls)
+        }
+        if r?.isEmpty ?? true { r = try? await OSRM.route(from: from, to: place.location, mode: .drive) }
+        guard !Task.isCancelled, let secs = r?.map(\.durationSeconds).min() else { return }
+        withAnimation { driveSeconds = secs }
     }
 
     private var hasAbout: Bool { !place.about.isEmpty }
@@ -391,7 +400,10 @@ enum OtherApp: String, CaseIterable {
 
     func url(for p: Place) -> URL {
         let ll = "\(p.location.lat),\(p.location.lng)"
-        let name = p.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        // "&", "+" and "=" would cut the name short ("M&S" became "M").
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&+=?#")
+        let name = p.name.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
         switch self {
         case .google: return p.shareURL ?? URL(string: "https://www.google.com/maps/search/?api=1&query=\(ll)")!
         case .waze: return URL(string: "https://waze.com/ul?ll=\(ll)&navigate=yes")!

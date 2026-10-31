@@ -9,6 +9,12 @@ the middle number for big milestones.
   the map says it checks the other way *and* it stands on the far side of the road, since the
   map's direction alone is wrong for about one camera in six. Cameras with no direction on the
   map, or any doubt, still warn. Number plate cameras are unchanged.
+- **The drive time on a place card matches the route:** it said "23 min drive" for a 29 min
+  drive, as it came from the open router without traffic. It now asks the same way the
+  directions do, with traffic and your avoid settings.
+- **The route line's teal-to-cyan fade works again on the newest iOS**, which refused the old way
+  of writing it.
+- **Sending a place to Apple Maps keeps its whole name:** "M&S" went over as "M".
 
 ## 0.7.5
 

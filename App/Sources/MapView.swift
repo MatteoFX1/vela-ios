@@ -213,8 +213,9 @@ struct VelaMapView: UIViewRepresentable {
             altFill.lineOpacity = NSExpression(forConstantValue: 0.6)
             let edge = line("vela-route-edge", routeSrc, UIColor(hex: 0x0F766E), width: 15)
             let fill = line("vela-route-line", routeSrc, UIColor(hex: 0x2DD4BF), width: 10)
-            fill.lineGradient = NSExpression(format: "mgl_interpolate:withCurveType:parameters:stops:($lineProgress, 'linear', nil, %@)",
-                                             [0: UIColor(hex: 0x2DD4BF), 1: UIColor(hex: 0x22D3EE)])
+            // As a style expression: newer iOS refuses the old "mgl_interpolate:" format string.
+            fill.lineGradient = NSExpression(mglJSONObject: ["interpolate", ["linear"], ["line-progress"],
+                                                             0, "#2DD4BF", 1, "#22D3EE"])
             let chevrons = MLNSymbolStyleLayer(identifier: "vela-route-chevrons", source: routeSrc)
             chevrons.symbolPlacement = NSExpression(forConstantValue: "line")
             chevrons.symbolSpacing = NSExpression(forConstantValue: 70)
