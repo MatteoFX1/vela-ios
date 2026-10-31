@@ -46,7 +46,7 @@ final class DataDiagnostics: ObservableObject {
             ]
             if let mapImage { entries.append(.init(name: "map.png", data: mapImage)) }
 
-            func timed<T>(_ name: String, _ work: () async -> T?, describe: (T) -> String) async {
+            @MainActor func timed<T>(_ name: String, _ work: () async -> T?, describe: (T) -> String) async {
                 status = "Testing \(name)…"
                 let t0 = Date()
                 let result = await work()
