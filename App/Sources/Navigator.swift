@@ -738,7 +738,7 @@ final class Navigator: ObservableObject {
     }
 
     private func reroute(from loc: CLLocation, quiet: Bool = false) {
-        Self.trace.info("reroute from \(String(format: "%.5f,%.5f", loc.coordinate.latitude, loc.coordinate.longitude), privacy: .public) heading \(heading(loc).map { Int($0) } ?? -1)")
+        Self.trace.info("reroute from \(String(format: "%.5f,%.5f", loc.coordinate.latitude, loc.coordinate.longitude), privacy: .public) heading \(self.heading(loc).map { Int($0) } ?? -1)")
         rerouting = true
         lastReroute = Date()
         if !Connectivity.shared.online {
