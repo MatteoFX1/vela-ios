@@ -39,6 +39,12 @@ jobs:
         continue-on-error: true
         timeout-minutes: 6
         run: python3 .github/probe/camside.py
+      - name: Live heat map tiles check (Highway Radar server, UK)
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          pip3 install --quiet --break-system-packages pillow || pip3 install --quiet pillow || true
+          python3 .github/probe/heattiles.py
       - name: Live UK turn-by-turn check
         working-directory: VelaCore
         continue-on-error: true
