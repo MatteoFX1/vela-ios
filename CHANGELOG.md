@@ -22,7 +22,10 @@ the middle number for big milestones.
 - **Rerouting knows which way you're going even when the phone doesn't say:** with no compass
   course from the GPS, Kite works it out from the last few seconds of driving, so a new route
   doesn't start back the way you came.
-- **Arrived card:** the Done button no longer wraps to "Don / e", and long place names get two lines.
+- **Arrived card:** "You've arrived", the place name and Done are never cut short or wrapped
+  ("Don / e"); on a narrow screen the buttons move under the words.
+- **Cameras on the map load even when the map server is busy:** Kite tries again after 30 seconds
+  instead of waiting for you to move the map.
 - **A place's distance is from where you are now,** not from where you searched (it still said
   "11 mi" after arriving).
 - **Surveillance cameras layer (off by default):** CCTV cameras from OpenStreetMap, switched on

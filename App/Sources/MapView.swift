@@ -1,4 +1,5 @@
 import MapLibre
+import os
 import SwiftUI
 import UIKit
 import VelaCore
@@ -62,6 +63,8 @@ struct VelaMapView: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
+        /** What the browse map asked Waze and got, for checking a test run afterwards. */
+        static let trace = Logger(subsystem: "app.vela.ios", category: "trace")
         let model: AppModel
         var dark = false
         private var styleReady = false
@@ -590,6 +593,7 @@ struct VelaMapView: UIViewRepresentable {
                 var merged: [String: WazeAlert] = [:]
                 for a in (fromMap ?? []) + (live ?? []) { merged[a.id] = a }
                 let found = Array(merged.values)
+                Self.trace.info("waze browse: live map \(fromMap.map { String($0.count) } ?? "failed", privacy: .public), drivers' reports \(askLive ? (live.map { String($0.count) } ?? "failed") : "not asked", privacy: .public)")
                 self.wazeAlerts = found
                 // Asked again once the map leaves the part drivers' reports were asked for.
                 self.wazeBox = live != nil ? liveBox : box
@@ -651,7 +655,13 @@ struct VelaMapView: UIViewRepresentable {
                     north: Double(ys.max()! + 1) * cell, east: Double(xs.max()! + 1) * cell)
                 guard let self else { return }
                 self.surveillanceFetch = nil
-                guard let found else { return }
+                guard let found else {
+                    // A busy server: try again in 30 s, not only when the map is next moved.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self, weak map] in
+                        if let self, let map { self.loadSurveillance(map) }
+                    }
+                    return
+                }
                 for (y, x) in missing { self.surveillanceCells.insert("\(y),\(x)") }
                 for c in found { self.surveillance[c.id] = c }
                 if let map { self.render(map); self.loadSurveillance(map) }
@@ -673,12 +683,18 @@ struct VelaMapView: UIViewRepresentable {
             let ys = missing.map(\.0), xs = missing.map(\.1)
             let south = Double(ys.min()!) * cell, north = Double(ys.max()! + 1) * cell
             let west = Double(xs.min()!) * cell, east = Double(xs.max()! + 1) * cell
-            cameraFetch = Task { [weak self] in
+            cameraFetch = Task { [weak self, weak map] in
                 // Both kinds every time, so turning one on later needs no new fetch.
                 let found = await Overpass.cameras(south: south, west: west, north: north, east: east, speed: true, plate: true)
-                guard let self else { return }
+                guard let self, let map else { return }
                 self.cameraFetch = nil
-                guard let found else { return }
+                guard let found else {
+                    // A busy server: try again in 30 s, not only when the map is next moved.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self, weak map] in
+                        if let self, let map { self.loadCameras(map) }
+                    }
+                    return
+                }
                 for (y, x) in missing { self.cameraCells.insert("\(y),\(x)") }
                 for c in found { self.cameras[c.id] = c }
                 self.render(map)
