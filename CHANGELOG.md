@@ -19,6 +19,12 @@ the middle number for big milestones.
 - **The route line's teal-to-cyan fade works again on the newest iOS**, which refused the old way
   of writing it.
 - **Sending a place to Apple Maps keeps its whole name:** "M&S" went over as "M".
+- **Rerouting knows which way you're going even when the phone doesn't say:** with no compass
+  course from the GPS, Kite works it out from the last few seconds of driving, so a new route
+  doesn't start back the way you came.
+- **Arrived card:** the Done button no longer wraps to "Don / e", and long place names get two lines.
+- **A place's distance is from where you are now,** not from where you searched (it still said
+  "11 mi" after arriving).
 
 ## 0.7.5
 

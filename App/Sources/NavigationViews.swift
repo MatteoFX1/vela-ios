@@ -525,8 +525,9 @@ struct ArrivedCard: View {
         HStack(spacing: 14) {
             Image(systemName: "flag.checkered").font(.system(size: 38, weight: .bold))
             VStack(alignment: .leading, spacing: 2) {
-                Text("You've arrived").font(.system(size: 26, weight: .heavy))
-                Text(name).font(.system(size: 18, weight: .semibold)).lineLimit(1)
+                Text("You've arrived").font(.system(size: 26, weight: .heavy)).lineLimit(1).minimumScaleFactor(0.75)
+                // Two lines for a long name ("Winchester Cathedral" was cut to "Winchest…").
+                Text(name).font(.system(size: 18, weight: .semibold)).lineLimit(2).minimumScaleFactor(0.85)
                 if let note { Text(note).font(.subheadline).opacity(0.85).lineLimit(2) }
             }
             Spacer()
@@ -539,8 +540,9 @@ struct ArrivedCard: View {
                 .accessibilityLabel("Save parking")
             }
             Button(action: done) {
-                Text("Done").font(.system(size: 20, weight: .bold))
-                    .padding(.horizontal, 20).frame(height: 56)
+                // Never squeezed into "Don / e" by a long place name.
+                Text("Done").font(.system(size: 20, weight: .bold)).lineLimit(1).fixedSize()
+                    .padding(.horizontal, 18).frame(height: 56)
                     .background(Capsule().fill(Color.white.opacity(0.22)))
             }
         }

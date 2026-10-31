@@ -30,7 +30,7 @@ struct PlaceHeader: View {
                 }
                 CircleIconButton(icon: "xmark") { withAnimation { model.closePlace() } }
             }
-            PlaceMetaLine(place: place)
+            PlaceMetaLine(place: place, here: model.userLatLng)
             StatusText(place: place).font(.subheadline)
             // The one thing most people want, in reach even with the sheet down.
             HStack(spacing: 10) {
