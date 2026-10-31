@@ -64,6 +64,8 @@ struct LayersSheet: View {
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
+    /** For "Share diagnostics" in About. */
+    var model: AppModel? = nil
     /** A page of the dock rather than a sheet: no Done button. */
     var inTab = false
     /** Opens the search for choosing home or work (the dock's page has it). */
@@ -251,6 +253,18 @@ struct SettingsView: View {
                 Text("Free software under the GPL-3.0. Map © OpenFreeMap, OpenMapTiles, OpenStreetMap contributors. Routing © FOSSGIS OSRM. Imagery © Esri.")
                     .font(.caption).foregroundColor(.secondary)
             }
+            if let model {
+                Section {
+                    NavigationLink { DataDiagnosticsView(model: model) } label: {
+                        Label("Share diagnostics", systemImage: "doc.text.magnifyingglass")
+                    }
+                } footer: {
+                    Text("Makes a small file to send with a bug report.")
+                }
+            }
+            Section {
+                Link("Surveillance cameras, saved-place matching, GPS warnings and diagnostics from Ausbloke's Kite fork", destination: URL(string: "https://github.com/NotDiscordOfficial/kite-maps")!)
+            } header: { Text("Thanks to") }
         }
         .kiteList()
         .navigationTitle("About")

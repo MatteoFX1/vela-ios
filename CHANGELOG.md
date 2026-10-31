@@ -18,6 +18,17 @@ the middle number for big milestones.
 - **The route line's teal-to-cyan fade works again on the newest iOS**, which refused the old way
   of writing it.
 - **Sending a place to Apple Maps keeps its whole name:** "M&S" went over as "M".
+- **Surveillance cameras layer (off by default):** CCTV cameras from OpenStreetMap, switched on
+  in Layers or Settings. Tap one to see who runs it. Map only, no warnings.
+- **Saved places stay saved:** tapping a place on the map you'd already saved from search now shows
+  it as saved, and the pin stays where you tapped instead of jumping to a nearby result.
+- **Saved-place names are easier to read** on the dark map.
+- **GPS warnings:** a card tells you when Precise Location is off for Kite, or when GPS is poor
+  (worse than 200 m). The "police risk here" card waits for a good fix and is now called "Local
+  report activity".
+- **Share diagnostics** (Settings, About): a small file with your Kite version, iPhone model,
+  settings and whether Waze and OpenStreetMap answer, to send with a bug report.
+- Thanks to Ausbloke's fork (github.com/NotDiscordOfficial/kite-maps) for these five.
 
 ## 0.7.5
 
