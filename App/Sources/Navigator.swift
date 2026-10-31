@@ -58,6 +58,8 @@ final class Navigator: ObservableObject {
     private static let log = Logger(subsystem: "app.vela.ios", category: "voice")
     /** Where the drive is, every few seconds, for checking a drive afterwards (simulated or real). */
     private static let trace = Logger(subsystem: "app.vela.ios", category: "trace")
+    /** Launched with -KiteSilent (simulated test drives): the voice is logged but not played. */
+    static let silent = ProcessInfo.processInfo.arguments.contains("-KiteSilent")
     private var tracedAt = Date.distantPast
     private let calls = CXCallObserver()
     /** A phone (or FaceTime, WhatsApp...) call is going on. */
@@ -600,7 +602,7 @@ final class Navigator: ObservableObject {
 
     /** A short tone before a camera warning, the way Waze does it. */
     private func chime() {
-        guard !muted, !stopped, !onCall else { return }
+        guard !muted, !stopped, !onCall, !Self.silent else { return }
         AudioServicesPlaySystemSound(1057)
     }
 
@@ -798,6 +800,8 @@ final class Navigator: ObservableObject {
         let said = SpokenText.forVoice(text)
         // What was said, for checking a drive afterwards (Console, or `log stream` on a simulator).
         Self.log.info("say: \(said, privacy: .public)")
+        // Test drives on a Mac (launched with -KiteSilent): logged, never played out loud.
+        if Self.silent { return }
         let u = AVSpeechUtterance(string: said)
         u.voice = Self.voice
         u.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95
