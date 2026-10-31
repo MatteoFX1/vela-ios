@@ -372,10 +372,15 @@ final class Navigator: ObservableObject {
         }
         let spoken = Set(routeCameras.indices.filter { spokenCameras.contains(routeCameras[$0].camera.id) })
         guard let i = CameraAlerts.due(cameraMeters: meters, traveled: p.alongMeters, speedMps: speedMps, spoken: spoken) else { return }
-        // Cameras close together are one warning: OSM often maps one per direction, or a pole and its
-        // sign, and the A33 at Redbridge got three warnings in ten seconds.
-        for (j, m) in meters.enumerated() where m >= meters[i] && m - meters[i] < 200 { spokenCameras.insert(routeCameras[j].camera.id) }
         let cam = routeCameras[i].camera
+        // Cameras close together are one warning: OSM often maps one per direction, or a pole and its
+        // sign, and the A33 at Redbridge got three warnings in ten seconds. A quiet one (likely the
+        // other side's) never stands in for a real one next to it.
+        if cam.quiet {
+            spokenCameras.insert(cam.id)
+        } else {
+            for (j, m) in meters.enumerated() where m >= meters[i] && m - meters[i] < 200 { spokenCameras.insert(routeCameras[j].camera.id) }
+        }
         let ahead = meters[i] - p.alongMeters
         let limit = cam.kind == .speed ? (cam.maxspeedKmh ?? route.speedLimit(at: meters[i])) : nil
         cameraAhead = CameraAlert(kind: cam.kind, meters: ahead, startMeters: max(ahead, 1), limitKmh: limit)
@@ -384,7 +389,8 @@ final class Navigator: ObservableObject {
         // A run of cameras (a smart motorway's gantries, every mile or so) is said once: after
         // that, the next ones at the same limit within a couple of minutes get the card and the chime.
         let repeatRun = Date().timeIntervalSince(cameraSpokenAt) < 150 && limit == cameraSpokenLimit
-        if AppSettings.shared.cameraWarnings, cam.kind == .speed {
+        // Likely the other side's camera: on screen only, no chime or voice.
+        if AppSettings.shared.cameraWarnings, cam.kind == .speed, !cam.quiet {
             chime()
             if !repeatRun {
                 speak((cam.average ? "Average speed camera ahead" : "Speed camera ahead") + (limit.map { ", limit \(Fmt.spokenSpeed($0))." } ?? "."))

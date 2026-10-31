@@ -5,10 +5,11 @@ the middle number for big milestones.
 
 ## 0.7.6
 
-- **No warnings for cameras on the other side of the road:** Kite skips a speed camera only when
-  the map says it checks the other way *and* it stands on the far side of the road, since the
-  map's direction alone is wrong for about one camera in six. Cameras with no direction on the
-  map, or any doubt, still warn. Number plate cameras are unchanged.
+- **Quieter about cameras on the other side of the road:** when the map says a speed camera
+  checks the other way *and* it stands on the far side of the road, Kite still shows it on screen
+  but doesn't chime or speak. It isn't hidden, because the map's direction is wrong for about one
+  camera in six. Cameras with no direction on the map warn as before. Number plate cameras are
+  unchanged.
 - **Police and drivers' reports on the map all the time:** not just along a route while you
   navigate. Open the map at city zoom and Kite asks Waze about the area on screen, at most every
   2 minutes or when you move the map well away (navigating, it still asks along the route).

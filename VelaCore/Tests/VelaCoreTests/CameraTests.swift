@@ -261,8 +261,12 @@ final class ValhallaTests: XCTestCase {
             cam(7, 51.014, east, [90]),     // sideways: warns
             cam(8, 51.016, east, [200]),    // the other way's: skipped
         ]
-        XCTAssertEqual(CameraAlerts.project(cams, on: line).map(\.camera.id), [1, 3, 4, 5, 6, 7])
+        // All still shown; the other way's are quiet.
+        let north = CameraAlerts.project(cams, on: line)
+        XCTAssertEqual(north.count, 8)
+        XCTAssertEqual(north.filter(\.camera.quiet).map(\.camera.id), [2, 8])
         // Driving south, the other way round.
-        XCTAssertEqual(CameraAlerts.project(cams, on: line.reversed()).map(\.camera.id).sorted(), [2, 3, 4, 5, 6, 7, 8])
+        let south = CameraAlerts.project(cams, on: line.reversed())
+        XCTAssertEqual(south.filter(\.camera.quiet).map(\.camera.id), [1])
     }
 }

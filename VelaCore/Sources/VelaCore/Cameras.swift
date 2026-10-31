@@ -17,6 +17,14 @@ public struct RoadCamera: Hashable, Codable, Sendable, Identifiable {
      * from OSM's `direction`. Nil when the map doesn't say, so it counts for both ways.
      */
     public var directions: [Double]? = nil
+    /**
+     * Set along a route for a camera that looks like the other side's (see [CameraAlerts.otherWay]):
+     * it still shows, but without a chime or voice, since the map can be wrong.
+     */
+    public var quiet = false
+
+    /** Saved in the road cache without [quiet], which only means something along one route. */
+    enum CodingKeys: String, CodingKey { case id, kind, location, operatorName, maxspeedKmh, average, directions }
 
     /** OSM `direction` as compass bearings: "90", "NE", "45;225", "0-90" (its middle). Nil for "both", "forward" and the like. */
     public static func bearings(_ raw: String?) -> [Double]? {
@@ -430,7 +438,7 @@ public enum CameraAlerts {
             }
             run = []
         }
-        for c in cams where c.camera.average {
+        for c in cams where c.camera.average && !c.camera.quiet {
             if let last = run.last, c.along - last.along > maxGap { close() }
             run.append(c)
         }
@@ -463,17 +471,18 @@ public enum CameraAlerts {
         for c in cams {
             let p = Geo.project(c.location, on: line, cumulative: cum)
             guard p.offset <= maxOffset else { continue }
-            if otherWay(c, along: p.along, offset: p.offset, on: line, cumulative: cum) { continue }
-            out.append((c, p.along))
+            var cam = c
+            cam.quiet = otherWay(c, along: p.along, offset: p.offset, on: line, cumulative: cum)
+            out.append((cam, p.along))
         }
         return out.sorted { $0.1 < $1.1 }
     }
 
     /**
-     * A camera for the traffic coming the other way, so not one to warn about: only when the map
-     * says it checks the other way AND it stands on the far side of the road. The map's direction
-     * alone is wrong for about one camera in six (12 of 71 on one-way roads in Britain), and a
-     * missed camera costs far more than an extra warning, so one sign isn't enough.
+     * Likely a camera for the traffic coming the other way: the map says it checks the other way AND
+     * it stands on the far side of the road. Even both together can be wrong (in Britain the map's
+     * direction is reversed for 12 of 71 cameras on one-way roads, and the side disagrees with it
+     * for 198 of 773), so such a camera is shown quietly rather than left out.
      */
     static func otherWay(_ c: RoadCamera, along: Double, offset: Double, on line: [LatLng], cumulative cum: [Double]) -> Bool {
         let h = heading(of: line, at: along, cumulative: cum)
