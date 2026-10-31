@@ -311,9 +311,9 @@ struct WazeSettingsView: View {
         }
     }
 
-    /** How Waze's app servers answered last time (police, crashes and the rest, while navigating). */
+    /** How Waze's app servers answered last time (police, crashes and the rest). */
     private var live: (text: String, color: Color) {
-        guard let s = WazeLive.lastStatus else { return ("Driver reports: checked once you start a drive", .gray) }
+        guard let s = WazeLive.lastStatus else { return ("Driver reports: checked once you open the map at city zoom", .gray) }
         let mins = Int(Date().timeIntervalSince(s.at) / 60)
         let when = mins < 1 ? "just now" : "\(mins) min ago"
         switch s.code {
@@ -333,7 +333,7 @@ struct WazeSettingsView: View {
             } footer: {
                 Text(settings.noGoogle
                      ? "Off while \"Use Kite without Google\" is on, since Waze belongs to Google."
-                     : "While you navigate, Kite asks Waze for drivers' reports the way the Waze app does, with an anonymous account Waze makes for it (no name, email or phone). Closures also come from the Waze live map. Waze sees roughly where you are, anonymously. It doesn't allow other apps to do this, so it may stop working one day.")
+                     : "Kite asks Waze for drivers' reports the way the Waze app does, for the map on screen and along your route, with an anonymous account Waze makes for it (no name, email or phone). Closures also come from the Waze live map. Waze sees roughly where you are, anonymously. It doesn't allow other apps to do this, so it may stop working one day.")
             }
             if settings.wazeOn {
                 Section {

@@ -9,6 +9,9 @@ the middle number for big milestones.
   the map says it checks the other way *and* it stands on the far side of the road, since the
   map's direction alone is wrong for about one camera in six. Cameras with no direction on the
   map, or any doubt, still warn. Number plate cameras are unchanged.
+- **Police and drivers' reports on the map all the time:** not just along a route while you
+  navigate. Open the map at city zoom and Kite asks Waze about the area on screen, at most every
+  2 minutes or when you move the map well away (navigating, it still asks along the route).
 - **The drive time on a place card matches the route:** it said "23 min drive" for a 29 min
   drive, as it came from the open router without traffic. It now asks the same way the
   directions do, with traffic and your avoid settings.

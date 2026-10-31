@@ -86,7 +86,7 @@ public struct WazeAlert: Hashable, Sendable, Identifiable {
 public enum Waze {
     /**
      * The kinds Kite can get. Since October 2026 Waze's live map shares only road closures; the
-     * rest (police, crashes, hazards...) come from Waze's app servers while navigating (see
+     * rest (police, crashes, hazards...) come from Waze's app servers (see
      * [WazeLive]). Settings shows a switch for each.
      */
     public static let shares = Set(WazeAlert.Kind.allCases)

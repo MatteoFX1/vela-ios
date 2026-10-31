@@ -11,7 +11,8 @@ import Foundation
  * licenses/SABRE-Plus-LICENSE.txt). Only the fetch path: Kite never reports to Waze.
  *
  * Gentle on Waze: one account kept on the phone (at most 3 new ones a day), one session reused,
- * a handful of boxes per ask, and Kite only asks while navigating.
+ * a handful of boxes per ask: along the route every 90 seconds while navigating, and otherwise
+ * for the map on screen at most every 2 minutes (or when it moves well away).
  */
 public actor WazeLive {
     public static let shared = WazeLive()

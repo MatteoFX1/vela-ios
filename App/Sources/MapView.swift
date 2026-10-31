@@ -559,13 +559,27 @@ struct VelaMapView: UIViewRepresentable {
             let dLat = (b.ne.latitude - b.sw.latitude) * 0.3, dLng = (b.ne.longitude - b.sw.longitude) * 0.3
             let box = (s: b.sw.latitude - dLat, w: b.sw.longitude - dLng, n: b.ne.latitude + dLat, e: b.ne.longitude + dLng)
             guard box.n - box.s < 1.5, box.e - box.w < 2.5 else { return }
+            // Drivers' reports (police, crashes, hazards) come from Waze's app servers, as on a drive:
+            // the live map only has closures now. Not while navigating, which asks along the route
+            // itself every 90 seconds, so Waze isn't asked twice. A box no bigger than the Waze app's
+            // own view at a wide zoom, around the middle of the screen.
+            let mid = LatLng((b.ne.latitude + b.sw.latitude) / 2, (b.ne.longitude + b.sw.longitude) / 2)
+            let hLat = min((box.n - box.s) / 2, 0.15), hLng = min((box.e - box.w) / 2, 0.25)
+            let liveBox = (s: mid.lat - hLat, w: mid.lng - hLng, n: mid.lat + hLat, e: mid.lng + hLng)
+            let askLive = model.nav == nil && !DemoScript.active
             wazeFetch = Task { [weak self, weak map] in
-                let found = await Waze.alerts(south: box.s, west: box.w, north: box.n, east: box.e)
+                async let closures = Waze.alerts(south: box.s, west: box.w, north: box.n, east: box.e)
+                let live = askLive ? await WazeLive.shared.alerts(boxes: [liveBox], near: mid) : nil
+                let fromMap = await closures
                 guard let self else { return }
                 self.wazeFetch = nil
-                guard let found else { self.wazeFailedAt = Date(); return }
+                guard fromMap != nil || live != nil else { self.wazeFailedAt = Date(); return }
+                var merged: [String: WazeAlert] = [:]
+                for a in (fromMap ?? []) + (live ?? []) { merged[a.id] = a }
+                let found = Array(merged.values)
                 self.wazeAlerts = found
-                self.wazeBox = box
+                // Asked again once the map leaves the part drivers' reports were asked for.
+                self.wazeBox = live != nil ? liveBox : box
                 self.wazeAt = Date()
                 WazeHistory.shared.record(found)
                 self.model.wazeLiveCount = found.filter { self.model.settings.shows($0) }.count
